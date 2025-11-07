@@ -10,6 +10,10 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+  permissions:                # <-- Add this block
+  contents: read
+  packages: write
+
 jobs:
 
 
