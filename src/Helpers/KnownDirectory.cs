@@ -19,12 +19,31 @@ namespace Helpers
         public void Clear()
         {
             if (Directory.Exists(this.pathMovie))
-                Directory.Delete(this.pathMovie, true);
+                EmptyDirectory(this.pathMovie);
             if (Directory.Exists(this.pathTvShow))
-                Directory.Delete(this.pathTvShow, true);
+                EmptyDirectory(this.pathTvShow);
             Directory.CreateDirectory(pathMovie);
             Directory.CreateDirectory(pathTvShow);
         }
+
+        public static void EmptyDirectory(string path)
+        {
+            if (Directory.Exists(path))
+            {
+                // Delete all files
+                foreach (var file in Directory.GetFiles(path))
+                {
+                    File.Delete(file);
+                }
+
+                // Delete all folders
+                foreach (var directory in Directory.GetDirectories(path))
+                {
+                    Directory.Delete(directory, true);
+                }
+            }
+        }
+
 
     }
 }
