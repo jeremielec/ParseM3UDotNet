@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ParseM3UDotNet": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "SETTINGS_JSON": "../../settings.json"
+      }
+    }
+  }
+}

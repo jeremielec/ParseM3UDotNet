@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Net;
 using System.Numerics;
 using Helpers;
 using Microsoft.AspNetCore.Http;
@@ -47,13 +49,13 @@ public class LocalFileSync
         }
         else
         {
-            if (HasSyncInProgress())
+            if (HasSyncInProgress(tmpFile))
             {
                 logger.LogInformation("A request is already in progress, pending completion");
                 do
                 {
                     await Task.Delay(1000);
-                } while (HasSyncInProgress());
+                } while (HasSyncInProgress(tmpFile));
             }
 
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -70,10 +72,19 @@ public class LocalFileSync
             }
 
             long progress = 0;
+
+
             while (File.Exists(tmpFile))
             {
                 await Task.Delay(1000);
-                progress = await ServeFromLocalFile(httpContext, tmpFile, progress);
+                if (httpContext.RequestAborted.IsCancellationRequested == false)
+                {
+                    progress = await ServeFromLocalFile(httpContext, tmpFile, progress);
+                }
+
+                if (downloadTaskJob != null && downloadTaskJob.IsCompleted)
+                    break;
+
             }
             if (downloadTaskJob != null)
             {
@@ -99,7 +110,10 @@ public class LocalFileSync
 
     }
 
-    private bool HasSyncInProgress() => Directory.EnumerateFiles(this.knownDirectory.pathCacheDir).Any(a => a.EndsWith(".tmp"));
+    private bool HasSyncInProgress(string selfFile) => Directory
+        .EnumerateFiles(this.knownDirectory.pathCacheDir)
+        .Where(a => a != selfFile)
+        .Any(a => a.EndsWith(".tmp"));
     private string GetCacheFileName(string url) => JsonUtils.SerializeToBase64(url) + '.' + url.Split('.').Last();
 
     private void UpdateLastAccessTime(string cacheFile)
@@ -158,4 +172,8 @@ public class LocalFileSync
         }
 
     }
+
+
+
+
 }
