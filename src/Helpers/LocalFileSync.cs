@@ -76,7 +76,6 @@ public class LocalFileSync
 
             while (File.Exists(tmpFile))
             {
-                await Task.Delay(1000);
                 if (httpContext.RequestAborted.IsCancellationRequested == false)
                 {
                     progress = await ServeFromLocalFile(httpContext, tmpFile, progress);
@@ -85,7 +84,9 @@ public class LocalFileSync
                 if (downloadTaskJob != null && downloadTaskJob.IsCompleted)
                     break;
 
+                await Task.Delay(1000);
             }
+
             if (downloadTaskJob != null)
             {
                 try
