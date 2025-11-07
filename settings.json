@@ -1,0 +1,43 @@
+{
+    "Source": {
+        "LocalFileM3U": null,
+        "HttpM3USource": "http://domain/yourM3u.m3u",
+        "SyncIntervalHour": 24.0
+    },
+    "Regex": {
+        "HeaderMatch": "#EXTINF:-1,([a-zA-Z0-1].*)",
+        "SkipRegex": [
+            "_\\w\\w_",
+            "\\|\\w*\\|",
+            "▀",
+            "▄",
+            "[\u0600-\u06FF]"
+        ],
+        "GroupGenRegex": [
+            "S\\d\\d",
+            "E\\d\\d",
+            "\\([\\w\\s\\d]*\\)",
+            "FHD",
+            "UHD",
+            "MULTI",
+            "HDR",
+            "HD"
+        ],
+        "TvShow": {
+            "SeasonRegex": [
+                "(S\\d\\d)"
+            ],
+            "EpisodeRegex": [
+                "E\\d\\d"
+            ]
+        }
+    },
+    "Output": {
+        "Folder": "/tmp/output/",
+        "MaxCacheItem": 15
+    },
+    "Http": {
+        "PublicIp": "127.0.0.1",
+        "ListenPort": 35600
+    }
+}
