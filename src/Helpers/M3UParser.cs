@@ -50,7 +50,9 @@ namespace Helpers
                             var matchHeader = RegexStatic.Instance.M3UHeaderRegEx.Match(line);
                             if (matchHeader.Success)
                             {
-                                previousHeaderMatch = matchHeader;
+                                bool shouldSkip = RegexStatic.Instance.M3USkipRegEx.Any(a => a.Match(line).Success);
+                                if (shouldSkip == false)
+                                    previousHeaderMatch = matchHeader;
                             }
                         }
 
