@@ -176,6 +176,7 @@ public class LocalFileSync
 
         foreach (var toDelete in fileToDeletes)
         {
+            logger.LogInformation($"deleting {toDelete}");
             File.Delete(toDelete.File);
         }
 
