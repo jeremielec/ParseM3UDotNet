@@ -14,13 +14,15 @@ public class LocalFileSync
     private FileExtensionContentTypeProvider provider = new FileExtensionContentTypeProvider();
     private readonly SettingsModel settingsModel;
     private readonly ILogger<LocalFileSync> logger;
+    private readonly FileDownloader fileDownloader;
     private readonly KnownDirectory knownDirectory;
 
-    public LocalFileSync(KnownDirectory knownDirectory, SettingsModel settingsModel, ILogger<LocalFileSync> logger)
+    public LocalFileSync(KnownDirectory knownDirectory, SettingsModel settingsModel, ILogger<LocalFileSync> logger, FileDownloader fileDownloader)
     {
         this.knownDirectory = knownDirectory;
         this.settingsModel = settingsModel;
         this.logger = logger;
+        this.fileDownloader = fileDownloader;
         provider.Mappings.Add(".mkv", "video/x-matroska");
     }
 
@@ -49,22 +51,28 @@ public class LocalFileSync
         }
         else
         {
-            if (HasSyncInProgress(tmpFile))
-            {
-                logger.LogInformation("A request is already in progress, pending completion");
-                do
-                {
-                    await Task.Delay(1000);
-                } while (HasSyncInProgress(tmpFile));
-            }
-
             Stopwatch stopwatch = Stopwatch.StartNew();
 
-            Task? downloadTaskJob = null;
+            //  Task? downloadTaskJob = null;
             if (File.Exists(tmpFile) == false)
             {
                 logger.LogInformation($"Downloading and serving url  {targetUrl}");
-                downloadTaskJob = DownloadFile(targetUrl, tmpFile);
+                fileDownloader.Add(targetUrl, tmpFile, (a, b) => onDownloadCompleted(a, b, cacheFile));
+
+                Stopwatch pendingFileExistsWatch = Stopwatch.StartNew();
+                while (pendingFileExistsWatch.Elapsed.TotalSeconds < 15)
+                {
+                    if (File.Exists(tmpFile)) break;
+                }
+                if (File.Exists(tmpFile) == false)
+                {
+                    logger.LogWarning($"{tmpFile} doest not exists after 15 second, something is wrong");
+                    httpContext.Response.StatusCode = 500;
+                    await httpContext.Response.StartAsync();
+                    return;
+                }
+
+                // downloadTaskJob = DownloadFile(targetUrl, tmpFile);
             }
             else
             {
@@ -81,40 +89,39 @@ public class LocalFileSync
                     progress = await ServeFromLocalFile(httpContext, tmpFile, progress);
                 }
 
-                if (downloadTaskJob != null && downloadTaskJob.IsCompleted)
-                    break;
-
                 await Task.Delay(1000);
             }
 
-            if (downloadTaskJob != null)
+            if (File.Exists(cacheFile))
             {
-                try
-                {
-                    await downloadTaskJob;
-                }
-                catch (Exception e)
-                {
-                    File.Delete(tmpFile);
-                    logger.LogError(e, "download failed");
-                    return;
-                }
-                File.Move(tmpFile, cacheFile);
-                logger.LogInformation($"Downloading url {targetUrl} completed after {stopwatch.Elapsed}");
+                if (httpContext.RequestAborted.IsCancellationRequested == false)
+                    await ServeFromLocalFile(httpContext, cacheFile, progress);
             }
 
 
-            await ServeFromLocalFile(httpContext, cacheFile, progress);
+
+
         }
 
         ClearCacheFolder();
 
     }
 
-    private bool HasSyncInProgress(string selfFile) => Directory
-        .EnumerateFiles(this.knownDirectory.pathCacheDir)
-        .Where(a => a != selfFile)
-        .Any(a => a.EndsWith(".tmp"));
+    private void onDownloadCompleted(FileDownloaderItem item, DownloadStatusEnum @enum, string targetCacheFile)
+    {
+        if (@enum == DownloadStatusEnum.FAILED)
+        {
+            if (File.Exists(item.TargetFile))
+                File.Delete(item.TargetFile);
+        }
+        else if (@enum == DownloadStatusEnum.COMPLETED)
+        {
+            if (File.Exists(item.TargetFile))
+                File.Move(item.TargetFile, targetCacheFile);
+        }
+    }
+
+
     private string GetCacheFileName(string url) => JsonUtils.SerializeToBase64(url) + '.' + url.Split('.').Last();
 
     private void UpdateLastAccessTime(string cacheFile)
@@ -136,18 +143,18 @@ public class LocalFileSync
         }
     }
 
-    private async Task DownloadFile(string url, string target)
-    {
-        using (FileStream writeStream = File.Open(target, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-        {
-            using (HttpClient client = new HttpClient())
-            {
-                var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-                await response.Content.CopyToAsync(writeStream);
-            }
-        }
-    }
+    // private async Task DownloadFile(string url, string target)
+    // {
+    //     using (FileStream writeStream = File.Open(target, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+    //     {
+    //         using (HttpClient client = new HttpClient())
+    //         {
+    //             var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+    //             response.EnsureSuccessStatusCode();
+    //             await response.Content.CopyToAsync(writeStream);
+    //         }
+    //     }
+    // }
 
 
     private void ClearCacheFolder()

@@ -66,7 +66,11 @@ namespace Helpers
         {
             string tempName = rawName;
 
-            foreach (var reg in RegexStatic.Instance.M3UGroupGenRegEx)
+            var alLReg = RegexStatic.Instance.M3UGroupGenRegEx
+                .Concat(RegexStatic.Instance.M3USeasonRegEx)
+                .Concat(RegexStatic.Instance.M3UEpisodeRegEx);
+
+            foreach (var reg in alLReg)
             {
                 tempName = reg.Replace(tempName, "");
             }
@@ -75,6 +79,7 @@ namespace Helpers
                 tempName = tempName.Replace("  ", " ");
             tempName = tempName.Replace('/', ' ');
             tempName = tempName.Replace('\\', ' ');
+
             return tempName;
         }
     }

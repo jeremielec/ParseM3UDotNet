@@ -6,7 +6,7 @@ namespace Helpers
 {
 
 
-    public class StrmBuilder(KnownDirectory knownDirectory, SettingsModel settingsModel): IAsyncDisposable,IDisposable
+    public class StrmBuilder(KnownDirectory knownDirectory, SettingsModel settingsModel) : IAsyncDisposable, IDisposable
     {
 
 
@@ -18,6 +18,11 @@ namespace Helpers
 
             string baseDir = m3uItem.ItemType == M3UItemTypeEnum.MOVIE ? knownDirectory.pathMovie : knownDirectory.pathTvShow;
             string subDir = Path.Combine(baseDir, m3uItem.GroupName);
+            if (m3uItem.ItemType == M3UItemTypeEnum.TVSHOW && m3uItem.Season != null)
+            {
+                subDir = Path.Combine(subDir, m3uItem.Season);
+            }
+            
             string targetFile = Path.Combine(subDir, m3uItem.Name.Replace('/', ' ') + ".strm");
             Directory.CreateDirectory(subDir);
             string b64 = JsonUtils.SerializeToBase64(m3uItem.Url);

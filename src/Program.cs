@@ -24,9 +24,11 @@ builder.Services.AddScoped<M3UParser>();
 builder.Services.AddScoped<StrmBuilder>();
 builder.Services.AddScoped<KnownDirectory>();
 builder.Services.AddScoped<LocalFileSync>();
-
+builder.Services.AddSingleton<FileDownloader>();
 builder.Services.AddHostedService<PeriodicSync>();
 var app = builder.Build();
+
+
 
 app.Use(async (context, next) => await HttpRequestHandler.HandleRequest(context, next));
 

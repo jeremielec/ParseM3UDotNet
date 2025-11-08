@@ -25,7 +25,8 @@
         ],
         "TvShow": {
             "SeasonRegex": [
-                "(S\\d\\d)"
+                "(S\\d\\d)",
+                "\\s(\\d{1,2})$"
             ],
             "EpisodeRegex": [
                 "E\\d\\d"
