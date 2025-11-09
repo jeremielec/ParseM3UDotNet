@@ -30,7 +30,7 @@ var app = builder.Build();
 
 
 
-app.Use(async (context, next) => await HttpRequestHandler.HandleRequest(context, next));
+app.Run(async (context) => await HttpRequestHandler.HandleRequest(context));
 
 await app.StartAsync();
 

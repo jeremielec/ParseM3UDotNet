@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 
 namespace ParseM3UNet.Helpers;
@@ -90,6 +91,11 @@ public class FileDownloader
 
     }
 
+    public long? GetContentLengthForUrl(string url)
+    {
+        lock (items)
+            return items.Where(a => a.TargetUrl == url).Select(a => a.ContentLength).FirstOrDefault();
+    }
 
     private async Task<DownloadStatusEnum> DownloadFile(FileDownloaderItem fileDownloaderItem)
     {
@@ -113,6 +119,12 @@ public class FileDownloader
             {
                 HttpResponseMessage httpResponseMessage = await this.httpClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead);
                 httpResponseMessage.EnsureSuccessStatusCode();
+
+                if (fileDownloaderItem.PositionOffset == 0 && httpResponseMessage.Content.Headers.ContentLength != null)
+                {
+                    fileDownloaderItem.ContentLength = httpResponseMessage.Content.Headers.ContentLength;
+                }
+
                 using (var stream = await httpResponseMessage.Content.ReadAsStreamAsync())
                 {
                     int readed;
@@ -174,4 +186,5 @@ public record FileDownloaderItem(string TargetUrl, string TargetFile, Action<Fil
 
     public DateTime? nextTry = null;
     public int TryCount = 0;
+    public long? ContentLength = null;
 }

@@ -19,7 +19,7 @@ public static class HttpRequestHandler
 
 
 
-    public static async Task HandleRequest(HttpContext context, RequestDelegate next)
+    public static async Task HandleRequest(HttpContext context)
     {
         var match = RegexStatic.Instance.HttpUrlRegex.Match(context.Request.Path);
         if (match.Success)
@@ -36,7 +36,6 @@ public static class HttpRequestHandler
         }
 
         await context.Response.CompleteAsync();
-        await next(context);
     }
 
 

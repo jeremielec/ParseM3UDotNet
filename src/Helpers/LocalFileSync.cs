@@ -31,6 +31,27 @@ public class LocalFileSync
 
     public async Task SyncAndServerFile(HttpContext httpContext, string targetUrl)
     {
+        long progress = 0;
+
+        if (httpContext.Request.Headers.Range.Any())
+        {
+            var nonNull = httpContext.Request.Headers.Range.Where(a => a != null).First()!;
+            var match = RegexStatic.Instance.HttpRangeMatch.Match(nonNull);
+            if (match.Success)
+            {
+                var groupValue = match.Groups.Values.Last();
+                progress = long.Parse(groupValue.Value);
+                if (progress > 0)
+                {
+                    httpContext.Response.StatusCode = 206;
+                    httpContext.Response.Headers.AcceptRanges = "bytes";
+                    long? length = fileDownloader.GetContentLengthForUrl(targetUrl) ?? 999999999;
+                    httpContext.Response.Headers.ContentRange = $"bytes {progress}-{length}/{length+1}";
+                  //  httpContext.Response.Headers.ContentRange = $"bytes {progress}-*";
+                }
+            }
+
+        }
 
         if (!provider.TryGetContentType(targetUrl, out string? mime))
         {
@@ -42,12 +63,11 @@ public class LocalFileSync
         string tmpFile = cacheFile + ".tmp";
 
 
-
         if (File.Exists(cacheFile))
         {
             logger.LogInformation($"Serving url from local cache {targetUrl}");
             UpdateLastAccessTime(cacheFile);
-            await ServeFromLocalFile(httpContext, cacheFile);
+            await ServeFromLocalFile(httpContext, cacheFile, progress);
         }
         else
         {
@@ -68,7 +88,6 @@ public class LocalFileSync
                 {
                     logger.LogWarning($"{tmpFile} doest not exists after 15 second, something is wrong");
                     httpContext.Response.StatusCode = 500;
-                    await httpContext.Response.StartAsync();
                     return;
                 }
 
@@ -79,16 +98,12 @@ public class LocalFileSync
                 logger.LogInformation($"Serving url from tmpfile  {targetUrl}");
             }
 
-            long progress = 0;
 
 
-            while (File.Exists(tmpFile))
+            while (File.Exists(tmpFile) && httpContext.RequestAborted.IsCancellationRequested == false)
             {
-                if (httpContext.RequestAborted.IsCancellationRequested == false)
-                {
-                    progress = await ServeFromLocalFile(httpContext, tmpFile, progress);
-                }
 
+                progress = await ServeFromLocalFile(httpContext, tmpFile, progress);
                 await Task.Delay(1000);
             }
 
@@ -132,12 +147,26 @@ public class LocalFileSync
 
     public async Task<long> ServeFromLocalFile(HttpContext httpContext, string localFile, long? seekOffset = null)
     {
+
         using (Stream stream = File.Open(localFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
         {
             if (seekOffset != null)
                 stream.Seek(seekOffset.Value, SeekOrigin.Begin);
 
             await stream.CopyToAsync(httpContext.Response.Body);
+            // while (true)
+            // {
+            //     var read = await stream.ReadAsync(_data, 0, _data.Length);
+            //     if (read > 0)
+            //     {
+            //         await httpContext.Response.Body.WriteAsync(_data, 0, read);
+            //     }
+            //     else
+            //     {
+            //         break;
+            //     }
+            // }
+
             return stream.Position;
 
         }

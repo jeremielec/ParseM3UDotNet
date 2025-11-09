@@ -21,15 +21,18 @@ public class RegexStatic
 
         this.HttpUrlRegex = Create(@"^/([\w\d=]*)$");
 
+        this.HttpRangeMatch = Create("bytes=(\\d*)-");
+
     }
 
-    public readonly Regex M3UHeaderRegEx ;
+    public readonly Regex M3UHeaderRegEx;
     public readonly List<Regex> M3USeasonRegEx;
     public readonly List<Regex> M3UEpisodeRegEx;
     public readonly List<Regex> M3USkipRegEx;
     public readonly List<Regex> M3UGroupGenRegEx;
 
-    public Regex HttpUrlRegex { get; }
+    public readonly Regex HttpUrlRegex;
+    public readonly Regex HttpRangeMatch;
 
     private Regex Create(string reg) => new Regex(reg, RegexOptions.Compiled);
     private List<Regex> Create(IEnumerable<string> reg) => reg.Select(a => new Regex(a, RegexOptions.Compiled)).ToList();
