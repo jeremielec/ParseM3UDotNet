@@ -33,6 +33,7 @@ public class LocalFileSync
     {
         long progress = 0;
 
+        httpContext.Response.Headers.AcceptRanges = "bytes";
         if (httpContext.Request.Headers.Range.Any())
         {
             var nonNull = httpContext.Request.Headers.Range.Where(a => a != null).First()!;
