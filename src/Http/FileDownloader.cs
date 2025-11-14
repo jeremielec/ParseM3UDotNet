@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 
-namespace ParseM3UNet.Helpers;
+namespace ParseM3UNet.Http;
 
 public class FileDownloader
 {
     private readonly ILogger<FileDownloader> logger;
     private List<FileDownloaderItem> items = new();
-    byte[] dataArray = new byte[65535];
+    byte[] dataArray = new byte[262140];
     HttpClient httpClient = new();
 
 
@@ -31,6 +31,12 @@ public class FileDownloader
         }
     }
 
+
+    public bool UrlInProgress(string url)
+    {
+        lock (items)
+            return items.Any(a => a.TargetUrl == url);
+    }
     private async Task BackgroundJob()
     {
 
@@ -45,6 +51,7 @@ public class FileDownloader
             var toHandle = items
                 .Where(a => a.nextTry == null || a.nextTry < DateTime.Now)
                 .OrderBy(a => a.LastRunTime).First();
+
             toHandle.AbortRequested = false;
             toHandle.LastRunTime = DateTime.Now;
 
@@ -100,69 +107,70 @@ public class FileDownloader
     private async Task<DownloadStatusEnum> DownloadFile(FileDownloaderItem fileDownloaderItem)
     {
         FileStream outputStream;
-        if (fileDownloaderItem.PositionOffset == 0)
-        {
-            outputStream = File.Open(fileDownloaderItem.TargetFile, FileMode.Create, FileAccess.Write, FileShare.Read);
-        }
-        else
-        {
-            outputStream = File.Open(fileDownloaderItem.TargetFile, FileMode.Open, FileAccess.Write, FileShare.Read);
-            outputStream.Seek(fileDownloaderItem.PositionOffset, SeekOrigin.Begin);
-        }
 
-        using (outputStream)
-        {
 
-            HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, fileDownloaderItem.TargetUrl);
-            httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(fileDownloaderItem.PositionOffset, null);
-            try
+
+        HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, fileDownloaderItem.TargetUrl);
+        httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(fileDownloaderItem.PositionOffset, null);
+        try
+        {
+            HttpResponseMessage httpResponseMessage = await this.httpClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead);
+            httpResponseMessage.EnsureSuccessStatusCode();
+
+            if (fileDownloaderItem.PositionOffset == 0 && httpResponseMessage.Content.Headers.ContentLength != null)
             {
-                HttpResponseMessage httpResponseMessage = await this.httpClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead);
-                httpResponseMessage.EnsureSuccessStatusCode();
+                fileDownloaderItem.ContentLength = httpResponseMessage.Content.Headers.ContentLength;
+            }
 
-                if (fileDownloaderItem.PositionOffset == 0 && httpResponseMessage.Content.Headers.ContentLength != null)
+            if (fileDownloaderItem.PositionOffset == 0)
+            {
+                outputStream = File.Open(fileDownloaderItem.TargetFile, FileMode.Create, FileAccess.Write, FileShare.Read);
+            }
+            else
+            {
+                outputStream = File.Open(fileDownloaderItem.TargetFile, FileMode.Open, FileAccess.Write, FileShare.Read);
+                outputStream.Seek(fileDownloaderItem.PositionOffset, SeekOrigin.Begin);
+            }
+
+            using (outputStream)
+            using (var stream = await httpResponseMessage.Content.ReadAsStreamAsync())
+            {
+                int readed;
+
+                do
                 {
-                    fileDownloaderItem.ContentLength = httpResponseMessage.Content.Headers.ContentLength;
-                }
-
-                using (var stream = await httpResponseMessage.Content.ReadAsStreamAsync())
-                {
-                    int readed;
-
-                    do
+                    readed = await stream.ReadAsync(dataArray, 0, dataArray.Length);
+                    if (readed > 0)
                     {
-                        readed = await stream.ReadAsync(dataArray, 0, dataArray.Length);
-                        if (readed > 0)
-                        {
-                            await outputStream.WriteAsync(dataArray, 0, readed);
-                            fileDownloaderItem.PositionOffset += readed;
-                            // Read succeded, reset error tracking
-                            fileDownloaderItem.nextTry = null;
-                            fileDownloaderItem.TryCount = 0;
-                        }
+                        await outputStream.WriteAsync(dataArray, 0, readed);
+                        fileDownloaderItem.PositionOffset += readed;
+                        // Read succeded, reset error tracking
+                        fileDownloaderItem.nextTry = null;
+                        fileDownloaderItem.TryCount = 0;
+                    }
 
-                        if (fileDownloaderItem.AbortRequested)
-                        {
-                            return DownloadStatusEnum.SUSPENDED;
-                        }
-                    } while (readed > 0);
-                }
-            }
-            catch (Exception e)
-            {
-                logger.LogError(e, "download error from " + fileDownloaderItem.TargetUrl);
-                if (fileDownloaderItem.TryCount > CONST_TRYCOUNT)
-                {
-                    return DownloadStatusEnum.FAILED;
-                }
-                else
-                {
-                    fileDownloaderItem.TryCount = fileDownloaderItem.TryCount + 1;
-                    fileDownloaderItem.nextTry = DateTime.Now.AddSeconds(5);
-                    return DownloadStatusEnum.SUSPENDED;
-                }
+                    if (fileDownloaderItem.AbortRequested)
+                    {
+                        return DownloadStatusEnum.SUSPENDED;
+                    }
+                } while (readed > 0);
             }
         }
+        catch (Exception e)
+        {
+            logger.LogError(e, "download error from " + fileDownloaderItem.TargetUrl);
+            if (fileDownloaderItem.TryCount > CONST_TRYCOUNT)
+            {
+                return DownloadStatusEnum.FAILED;
+            }
+            else
+            {
+                fileDownloaderItem.TryCount = fileDownloaderItem.TryCount + 1;
+                fileDownloaderItem.nextTry = DateTime.Now.AddSeconds(5);
+                return DownloadStatusEnum.SUSPENDED;
+            }
+        }
+
         return DownloadStatusEnum.COMPLETED;
 
     }

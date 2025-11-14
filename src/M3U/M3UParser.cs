@@ -1,13 +1,15 @@
 
 
 using System.Text.RegularExpressions;
+using ParseM3UNet.Helpers;
 
-namespace Helpers
+namespace ParseM3UNet.M3U
 {
 
 
-    public class M3UParser()
+    public class M3UParser(RegexRepository regexRepository)
     {
+        private readonly RegexRepository regexRepository = regexRepository;
 
         public async IAsyncEnumerable<M3UItem> ReadM3U(Stream stream)
         {
@@ -25,12 +27,12 @@ namespace Helpers
                         {
                             string url = line;
                             string rawName = previousHeaderMatch.Groups.Values.Last().Value;
-                            string? seasonInfo = RegexStatic.Instance.M3USeasonRegEx
+                            string? seasonInfo = regexRepository.M3USeasonRegEx
                                 .Select(a => a.Match(rawName))
                                 .Where(a => a.Success)
                                 .Select(a => a.Captures.Last().Value)
                                 .FirstOrDefault();
-                            bool hasEpisodeInfo = RegexStatic.Instance.M3UEpisodeRegEx.Any(a => a.Match(rawName).Success);
+                            bool hasEpisodeInfo = regexRepository.M3UEpisodeRegEx.Any(a => a.Match(rawName).Success);
                             M3UItemTypeEnum m3UItemTypeEnum = hasEpisodeInfo && seasonInfo != null ? M3UItemTypeEnum.TVSHOW : M3UItemTypeEnum.MOVIE;
 
                             M3UItem m3UItem = new M3UItem(
@@ -47,10 +49,10 @@ namespace Helpers
                         }
                         else
                         {
-                            var matchHeader = RegexStatic.Instance.M3UHeaderRegEx.Match(line);
+                            var matchHeader = regexRepository.M3UHeaderRegEx.Match(line);
                             if (matchHeader.Success)
                             {
-                                bool shouldSkip = RegexStatic.Instance.M3USkipRegEx.Any(a => a.Match(line).Success);
+                                bool shouldSkip = regexRepository.M3USkipRegEx.Any(a => a.Match(line).Success);
                                 if (shouldSkip == false)
                                     previousHeaderMatch = matchHeader;
                             }
@@ -68,9 +70,9 @@ namespace Helpers
         {
             string tempName = rawName;
 
-            var alLReg = RegexStatic.Instance.M3UGroupGenRegEx
-                .Concat(RegexStatic.Instance.M3USeasonRegEx)
-                .Concat(RegexStatic.Instance.M3UEpisodeRegEx);
+            var alLReg = regexRepository.M3UGroupGenRegEx
+                .Concat(regexRepository.M3USeasonRegEx)
+                .Concat(regexRepository.M3UEpisodeRegEx);
 
             foreach (var reg in alLReg)
             {

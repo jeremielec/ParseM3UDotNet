@@ -1,13 +1,17 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Numerics;
 using Helpers;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using Models;
 using ParseM3UNet.Helpers;
+using ParseM3UNet.Http;
+using ParseM3UNet.StreamUtils;
 
 public class LocalFileSync
 {
@@ -15,14 +19,19 @@ public class LocalFileSync
     private readonly SettingsModel settingsModel;
     private readonly ILogger<LocalFileSync> logger;
     private readonly FileDownloader fileDownloader;
+    private readonly RegexRepository regexRepository;
     private readonly KnownDirectory knownDirectory;
 
-    public LocalFileSync(KnownDirectory knownDirectory, SettingsModel settingsModel, ILogger<LocalFileSync> logger, FileDownloader fileDownloader)
+    public LocalFileSync(
+        KnownDirectory knownDirectory, SettingsModel settingsModel,
+        ILogger<LocalFileSync> logger, FileDownloader fileDownloader,
+        RegexRepository regexRepository)
     {
         this.knownDirectory = knownDirectory;
         this.settingsModel = settingsModel;
         this.logger = logger;
         this.fileDownloader = fileDownloader;
+        this.regexRepository = regexRepository;
         provider.Mappings.Add(".mkv", "video/x-matroska");
     }
 
@@ -31,96 +40,112 @@ public class LocalFileSync
 
     public async Task SyncAndServerFile(HttpContext httpContext, string targetUrl)
     {
-        long progress = 0;
+        long? startOffset = null;
+        long? endOffset = null;
+
+        string cacheFile = Path.Combine(knownDirectory.pathCacheDir, GetCacheFileName(targetUrl));
+        PartialFileStream partialFileStream = new PartialFileStream(cacheFile);
+
 
         if (httpContext.Request.Headers.Range.Any())
         {
-            var nonNull = httpContext.Request.Headers.Range.Where(a => a != null).First()!;
-            var match = RegexStatic.Instance.HttpRangeMatch.Match(nonNull);
-            if (match.Success)
+            startOffset = 0;
+            if (httpContext.Request.Headers.Range.Count() > 1)
             {
-                var groupValue = match.Groups.Values.Last();
-                progress = long.Parse(groupValue.Value);
-                if (progress > 0)
-                {
-                    httpContext.Response.StatusCode = 206;
-                    httpContext.Response.Headers.AcceptRanges = "bytes";
-                    long? length = fileDownloader.GetContentLengthForUrl(targetUrl) ?? 999999999;
-                    httpContext.Response.Headers.ContentRange = $"bytes {progress}-{length}/{length+1}";
-                  //  httpContext.Response.Headers.ContentRange = $"bytes {progress}-*";
-                }
+                httpContext.Response.StatusCode = 416;
+                return;
             }
 
+
+            if (RangeHeaderValue.TryParse(httpContext.Request.Headers.Range, out var range))
+            {
+                var rangeCurrent = range.Ranges.FirstOrDefault();
+                if (rangeCurrent != null)
+                {
+                    if (rangeCurrent.From != null)
+                        startOffset = rangeCurrent.From.Value;
+                    if (rangeCurrent.To != null)
+                        endOffset = rangeCurrent.To.Value;
+                }
+            }
         }
+
+
+
+
+        if (startOffset != null)
+        {
+            partialFileStream.CurrentOffset = startOffset.Value;
+        }
+
+        if (File.Exists(cacheFile) == false)
+        {
+            if (File.Exists(partialFileStream.tempFileName) == false)
+            {
+                if (fileDownloader.UrlInProgress(targetUrl) == false)
+                    fileDownloader.Add(targetUrl, partialFileStream.tempFileName, (a, b) => onDownloadCompleted(a, b, cacheFile));
+                WaitForFileExists(partialFileStream.tempFileName);
+            }
+        }
+
+        /* Set response headers */
+        long? contentLength = GetFileSize(targetUrl, partialFileStream);
+
+        if (startOffset != null)
+        {
+            httpContext.Response.StatusCode = 206;
+            var length = (endOffset ?? contentLength);
+            httpContext.Response.Headers.ContentRange = $"bytes {startOffset}-{length}/{contentLength}";
+            httpContext.Response.ContentLength = length;
+
+        }
+        else
+        {
+            httpContext.Response.StatusCode = 200;
+            httpContext.Response.ContentLength = contentLength;
+        }
+
 
         if (!provider.TryGetContentType(targetUrl, out string? mime))
         {
             mime = "application/octet-stream"; // par défaut si inconnu
         }
         httpContext.Response.ContentType = mime;
+        httpContext.Response.Headers.AcceptRanges = "bytes";
 
-        string cacheFile = Path.Combine(knownDirectory.pathCacheDir, GetCacheFileName(targetUrl));
-        string tmpFile = cacheFile + ".tmp";
-
-
-        if (File.Exists(cacheFile))
-        {
-            logger.LogInformation($"Serving url from local cache {targetUrl}");
-            UpdateLastAccessTime(cacheFile);
-            await ServeFromLocalFile(httpContext, cacheFile, progress);
-        }
-        else
-        {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-
-            //  Task? downloadTaskJob = null;
-            if (File.Exists(tmpFile) == false)
-            {
-                logger.LogInformation($"Downloading and serving url  {targetUrl}");
-                fileDownloader.Add(targetUrl, tmpFile, (a, b) => onDownloadCompleted(a, b, cacheFile));
-
-                Stopwatch pendingFileExistsWatch = Stopwatch.StartNew();
-                while (pendingFileExistsWatch.Elapsed.TotalSeconds < 15)
-                {
-                    if (File.Exists(tmpFile)) break;
-                }
-                if (File.Exists(tmpFile) == false)
-                {
-                    logger.LogWarning($"{tmpFile} doest not exists after 15 second, something is wrong");
-                    httpContext.Response.StatusCode = 500;
-                    return;
-                }
-
-                // downloadTaskJob = DownloadFile(targetUrl, tmpFile);
-            }
-            else
-            {
-                logger.LogInformation($"Serving url from tmpfile  {targetUrl}");
-            }
-
-
-
-            while (File.Exists(tmpFile) && httpContext.RequestAborted.IsCancellationRequested == false)
-            {
-
-                progress = await ServeFromLocalFile(httpContext, tmpFile, progress);
-                await Task.Delay(1000);
-            }
-
-            if (File.Exists(cacheFile))
-            {
-                if (httpContext.RequestAborted.IsCancellationRequested == false)
-                    await ServeFromLocalFile(httpContext, cacheFile, progress);
-            }
-
-
-
-
-        }
-
-        ClearCacheFolder();
+        if (httpContext.Request.Method.Equals("head", StringComparison.InvariantCultureIgnoreCase) == false)
+            await ServeFromLocalFile(httpContext, partialFileStream, endOffset);
 
     }
+
+    private long? GetFileSize(string url, PartialFileStream partialFileStream)
+    {
+        if (File.Exists(partialFileStream.fileName))
+        {
+            var info = new FileInfo(partialFileStream.fileName);
+            return info.Length;
+        }
+        if (File.Exists(partialFileStream.tempFileName))
+        {
+            return fileDownloader.GetContentLengthForUrl(url);
+        }
+        return null;
+    }
+
+    private void WaitForFileExists(string file)
+    {
+
+        Stopwatch pendingFileExistsWatch = Stopwatch.StartNew();
+        while (pendingFileExistsWatch.Elapsed.TotalSeconds < 15)
+        {
+            if (File.Exists(file)) break;
+        }
+        if (File.Exists(file) == false)
+        {
+            throw new TimeoutException($"{file} doest not exists after 15 second, something is wrong");
+        }
+    }
+
 
     private void onDownloadCompleted(FileDownloaderItem item, DownloadStatusEnum @enum, string targetCacheFile)
     {
@@ -139,52 +164,44 @@ public class LocalFileSync
 
     private string GetCacheFileName(string url) => JsonUtils.SerializeToBase64(url) + '.' + url.Split('.').Last();
 
-    private void UpdateLastAccessTime(string cacheFile)
-    {
-        DateTime nouvelleDate = DateTime.Now;
-        File.SetLastAccessTime(cacheFile, nouvelleDate);
-    }
 
-    public async Task<long> ServeFromLocalFile(HttpContext httpContext, string localFile, long? seekOffset = null)
-    {
 
-        using (Stream stream = File.Open(localFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+    public async Task ServeFromLocalFile(HttpContext httpContext, PartialFileStream partialFileStream, long? endOffset)
+    {
+        int? readed;
+        do
         {
-            if (seekOffset != null)
-                stream.Seek(seekOffset.Value, SeekOrigin.Begin);
+            readed = await partialFileStream.Read();
+            if (readed != null)
+            {
+                if (partialFileStream.CurrentOffset > endOffset && endOffset != null)
+                {
+                    readed = (int)(partialFileStream.CurrentOffset - endOffset.Value);
+                }
 
-            await stream.CopyToAsync(httpContext.Response.Body);
-            // while (true)
-            // {
-            //     var read = await stream.ReadAsync(_data, 0, _data.Length);
-            //     if (read > 0)
-            //     {
-            //         await httpContext.Response.Body.WriteAsync(_data, 0, read);
-            //     }
-            //     else
-            //     {
-            //         break;
-            //     }
-            // }
+                await httpContext.Response.Body.WriteAsync(partialFileStream.Data, 0, readed.Value);
 
-            return stream.Position;
+                if (readed == 0)
+                    await Task.Delay(2000);
 
-        }
+                if (httpContext.RequestAborted.IsCancellationRequested)
+                    break;
+            }
+            else
+            {
+                break;
+            }
+        } while (true);
+
+        // using (Stream stream = File.Open(localFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        // {
+        //     if (seekOffset != null)
+        //         stream.Seek(seekOffset.Value, SeekOrigin.Begin);
+
+        //     await stream.CopyToAsync(httpContext.Response.Body);
+        //    return stream.Position;
+        // }
     }
-
-    // private async Task DownloadFile(string url, string target)
-    // {
-    //     using (FileStream writeStream = File.Open(target, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
-    //     {
-    //         using (HttpClient client = new HttpClient())
-    //         {
-    //             var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-    //             response.EnsureSuccessStatusCode();
-    //             await response.Content.CopyToAsync(writeStream);
-    //         }
-    //     }
-    // }
-
 
     private void ClearCacheFolder()
     {
