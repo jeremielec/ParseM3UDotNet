@@ -47,6 +47,7 @@ public class LocalFileSync
         PartialFileStream partialFileStream = new PartialFileStream(cacheFile);
 
 
+        httpContext.Response.Headers.AcceptRanges = "bytes";
         if (httpContext.Request.Headers.Range.Any())
         {
             startOffset = 0;
