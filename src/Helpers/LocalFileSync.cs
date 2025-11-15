@@ -114,6 +114,10 @@ public class LocalFileSync
         httpContext.Response.ContentType = mime;
         httpContext.Response.Headers.AcceptRanges = "bytes";
 
+
+        this.logger.LogInformation($"Serving file range start : {startOffset} end: {endOffset} length : {contentLength}");
+        this.logger.LogInformation($"Content Range response : {httpContext.Response.Headers.ContentRange.FirstOrDefault()}");
+
         if (httpContext.Request.Method.Equals("head", StringComparison.InvariantCultureIgnoreCase) == false)
             await ServeFromLocalFile(httpContext, partialFileStream, endOffset);
 
