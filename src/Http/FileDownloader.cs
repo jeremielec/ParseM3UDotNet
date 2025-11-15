@@ -3,20 +3,23 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
+using Models;
 
 namespace ParseM3UNet.Http;
 
 public class FileDownloader
 {
     private readonly ILogger<FileDownloader> logger;
+    private readonly SettingsModel settingsModel;
     private List<FileDownloaderItem> items = new();
     byte[] dataArray = new byte[262140];
     HttpClient httpClient = new();
 
 
-    public FileDownloader(ILogger<FileDownloader> logger)
+    public FileDownloader(ILogger<FileDownloader> logger, SettingsModel settingsModel)
     {
         this.logger = logger;
+        this.settingsModel = settingsModel;
         _ = BackgroundJob();
     }
 
@@ -114,6 +117,8 @@ public class FileDownloader
 
 
         HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, fileDownloaderItem.TargetUrl);
+        httpRequestMessage.Headers.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue(settingsModel.Http.UserAgent));
+
         if (fileDownloaderItem.PositionOffset > 0)
             httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(fileDownloaderItem.PositionOffset, null);
         try
@@ -173,6 +178,12 @@ public class FileDownloader
                 fileDownloaderItem.nextTry = DateTime.Now.AddSeconds(10);
                 return DownloadStatusEnum.SUSPENDED;
             }
+        }
+
+        if (fileDownloaderItem.ContentLength != null && fileDownloaderItem.PositionOffset < fileDownloaderItem.ContentLength.Value)
+        {
+            fileDownloaderItem.nextTry = DateTime.Now.AddSeconds(1);
+            return DownloadStatusEnum.SUSPENDED;
         }
 
         return DownloadStatusEnum.COMPLETED;

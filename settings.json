@@ -39,6 +39,7 @@
     },
     "Http": {
         "PublicIp": "127.0.0.1",
-        "ListenPort": 35600
+        "ListenPort": 35600,
+        "UserAgent": "IPTVSmartersPro"
     }
 }

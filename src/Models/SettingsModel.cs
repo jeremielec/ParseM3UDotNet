@@ -6,6 +6,7 @@ namespace Models
     {
         public string PublicIp { get; set; } = default!;
         public int ListenPort { get; set; }
+        public string UserAgent { get; set; } = default!;
     }
 
     public class Output
