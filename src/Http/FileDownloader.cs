@@ -114,7 +114,8 @@ public class FileDownloader
 
 
         HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, fileDownloaderItem.TargetUrl);
-        httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(fileDownloaderItem.PositionOffset, null);
+        if (fileDownloaderItem.PositionOffset > 0)
+            httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(fileDownloaderItem.PositionOffset, null);
         try
         {
             HttpResponseMessage httpResponseMessage = await this.httpClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead);
@@ -199,3 +200,4 @@ public record FileDownloaderItem(string TargetUrl, string TargetFile, Action<Fil
     public int TryCount = 0;
     public long? ContentLength = null;
 }
+
