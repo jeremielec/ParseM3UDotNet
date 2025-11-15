@@ -50,7 +50,9 @@ public class FileDownloader
 
             var toHandle = items
                 .Where(a => a.nextTry == null || a.nextTry < DateTime.Now)
-                .OrderBy(a => a.LastRunTime).First();
+                .OrderBy(a => a.LastRunTime).FirstOrDefault();
+
+            if (toHandle == null) continue;
 
             toHandle.AbortRequested = false;
             toHandle.LastRunTime = DateTime.Now;
@@ -93,6 +95,7 @@ public class FileDownloader
                 }
                 lock (items) items.Remove(toHandle);
             }
+
 
         }
 
@@ -166,7 +169,7 @@ public class FileDownloader
             else
             {
                 fileDownloaderItem.TryCount = fileDownloaderItem.TryCount + 1;
-                fileDownloaderItem.nextTry = DateTime.Now.AddSeconds(5);
+                fileDownloaderItem.nextTry = DateTime.Now.AddSeconds(10);
                 return DownloadStatusEnum.SUSPENDED;
             }
         }
