@@ -174,6 +174,7 @@ public class LocalFileSync
     public async Task ServeFromLocalFile(HttpContext httpContext, PartialFileStream partialFileStream, long? endOffset)
     {
         int? readed;
+        bool interruptRequested =false;
         do
         {
             readed = await partialFileStream.Read();
@@ -181,6 +182,7 @@ public class LocalFileSync
             {
                 if (partialFileStream.CurrentOffset > endOffset && endOffset != null)
                 {
+                    interruptRequested = true;
                     readed = (int)(partialFileStream.CurrentOffset - endOffset.Value);
                 }
 
@@ -192,11 +194,7 @@ public class LocalFileSync
                 if (httpContext.RequestAborted.IsCancellationRequested)
                     break;
             }
-            else
-            {
-                break;
-            }
-        } while (true);
+        } while (readed != null && interruptRequested == false);
 
         // using (Stream stream = File.Open(localFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
         // {
