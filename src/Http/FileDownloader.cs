@@ -20,10 +20,22 @@ public class FileDownloader
     {
         this.logger = logger;
         this.settingsModel = settingsModel;
-        _ = BackgroundJob();
+        _ = SafeBackgroundJob();
     }
 
     public const int CONST_TRYCOUNT = 3;
+
+    private async Task SafeBackgroundJob()
+    {
+        try
+        {
+            await BackgroundJob();
+        }catch(Exception e)
+        {
+            logger.LogError(e, "fatal download worker exception");
+            Environment.Exit(1);
+        }
+    }
 
     public void Add(string TargetUrl, string TargetFile, Action<FileDownloaderItem, DownloadStatusEnum> callback)
     {
@@ -117,7 +129,7 @@ public class FileDownloader
 
 
         HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, fileDownloaderItem.TargetUrl);
-        httpRequestMessage.Headers.UserAgent.Add(new System.Net.Http.Headers.ProductInfoHeaderValue(settingsModel.Http.UserAgent));
+        httpRequestMessage.Headers.TryAddWithoutValidation("User-Agent", settingsModel.Http.UserAgent);
 
         if (fileDownloaderItem.PositionOffset > 0)
             httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(fileDownloaderItem.PositionOffset, null);
