@@ -3,7 +3,7 @@ version: '2'
 services:
   ParserM3UDotNet:
     network_mode: "service:your_jellyfin"
-    image: 1b94898249d07d34399b6a496e849a3cebccbe5c31f31f6bc9a243d3c3893ad5
+    image: ghcr.io/jeremielec/parsem3udotnet:main
     environment:
       - SETTINGS_JSON=/tmp/settings.json
     volumes:
