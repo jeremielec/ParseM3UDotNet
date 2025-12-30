@@ -50,34 +50,38 @@ public class LocalFileSync
         httpContext.Response.Headers.AcceptRanges = "bytes";
         if (httpContext.Request.Headers.Range.Any())
         {
-            startOffset = 0;
-            if (httpContext.Request.Headers.Range.Count() > 1)
-            {
-                httpContext.Response.StatusCode = 416;
-                return;
-            }
+
+            httpContext.Response.StatusCode = 416;
+            await httpContext.Response.CompleteAsync();
+            return;
+            // startOffset = 0;
+            // if (httpContext.Request.Headers.Range.Count() > 1)
+            // {
+            //     httpContext.Response.StatusCode = 416;
+            //     return;
+            // }
 
 
-            if (RangeHeaderValue.TryParse(httpContext.Request.Headers.Range, out var range))
-            {
-                var rangeCurrent = range.Ranges.FirstOrDefault();
-                if (rangeCurrent != null)
-                {
-                    if (rangeCurrent.From != null)
-                        startOffset = rangeCurrent.From.Value;
-                    if (rangeCurrent.To != null)
-                        endOffset = rangeCurrent.To.Value;
-                }
-            }
+            // if (RangeHeaderValue.TryParse(httpContext.Request.Headers.Range, out var range))
+            // {
+            //     var rangeCurrent = range.Ranges.FirstOrDefault();
+            //     if (rangeCurrent != null)
+            //     {
+            //         if (rangeCurrent.From != null)
+            //             startOffset = rangeCurrent.From.Value;
+            //         if (rangeCurrent.To != null)
+            //             endOffset = rangeCurrent.To.Value;
+            //     }
+            // }
         }
 
 
 
 
-        if (startOffset != null)
-        {
-            partialFileStream.CurrentOffset = startOffset.Value;
-        }
+        // if (startOffset != null)
+        // {
+        //     partialFileStream.CurrentOffset = startOffset.Value;
+        // }
 
         if (File.Exists(cacheFile) == false)
         {
@@ -89,25 +93,26 @@ public class LocalFileSync
             }
         }
 
-        /* Set response headers */
+        // /* Set response headers */
+        // 
         long? contentLength = GetFileSize(targetUrl, partialFileStream);
 
-        if (startOffset != null && contentLength.HasValue && httpContext.Request.Headers.Range.Count() > 0)
-        {
-            long start = startOffset.Value;
-            long end = endOffset.HasValue ? endOffset.Value : (contentLength.GetValueOrDefault() - 1);
-            long responseLength = end - start + 1;
+        // if (startOffset != null && contentLength.HasValue && httpContext.Request.Headers.Range.Count() > 0)
+        // {
+        //     long start = startOffset.Value;
+        //     long end = endOffset.HasValue ? endOffset.Value : (contentLength.GetValueOrDefault() - 1);
+        //     long responseLength = end - start + 1;
 
-            httpContext.Response.StatusCode = endOffset.HasValue == false && start == 0 ? 200 : 206;
-            httpContext.Response.Headers.ContentRange = $"bytes {start}-{end}/{contentLength}";
-            httpContext.Response.ContentLength = responseLength;
-            httpContext.Response.Headers.AcceptRanges = "bytes";
-        }
-        else
-        {
-            httpContext.Response.StatusCode = 200;
-            httpContext.Response.ContentLength = contentLength;
-        }
+        //     httpContext.Response.StatusCode = endOffset.HasValue == false && start == 0 ? 200 : 206;
+        //     httpContext.Response.Headers.ContentRange = $"bytes {start}-{end}/{contentLength}";
+        //     httpContext.Response.ContentLength = responseLength;
+        //     httpContext.Response.Headers.AcceptRanges = "bytes";
+        // }
+        //else
+        //{
+        httpContext.Response.StatusCode = 200;
+        httpContext.Response.ContentLength = contentLength;
+        //}
 
 
         if (!provider.TryGetContentType(targetUrl, out string? mime))
