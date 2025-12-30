@@ -92,14 +92,16 @@ public class LocalFileSync
         /* Set response headers */
         long? contentLength = GetFileSize(targetUrl, partialFileStream);
 
-        if (startOffset != null)
+        if (startOffset != null && contentLength.HasValue)
         {
             long start = startOffset.Value;
-            long end = endOffset ?? (contentLength - 1);
+            long end = endOffset.HasValue ? endOffset.Value : (contentLength.GetValueOrDefault() - 1);
+            long responseLength = end - start + 1;
 
             httpContext.Response.StatusCode = 206;
             httpContext.Response.Headers.ContentRange = $"bytes {start}-{end}/{contentLength}";
-            httpContext.Response.ContentLength = length;
+            httpContext.Response.ContentLength = responseLength;
+            httpContext.Response.Headers.AcceptRanges = "bytes";
         }
         else
         {
@@ -113,7 +115,6 @@ public class LocalFileSync
             mime = "application/octet-stream"; // par défaut si inconnu
         }
         httpContext.Response.ContentType = mime;
-        httpContext.Response.Headers.AcceptRanges = "bytes";
 
 
         this.logger.LogInformation($"Serving file range start : {startOffset} end: {endOffset} length : {contentLength}");
