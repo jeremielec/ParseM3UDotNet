@@ -115,7 +115,7 @@ public class LocalFileSync
             mime = "application/octet-stream"; // par défaut si inconnu
         }
         httpContext.Response.ContentType = mime;
-        httpContext.Response.Headers.ContentDisposition.Append("inline");
+        httpContext.Response.Headers.ContentDisposition = "inline";
 
         DumpHttpHeaders(httpContext, logger);
         this.logger.LogInformation($"Serving file range start : {startOffset} end: {endOffset} length : {contentLength}");
