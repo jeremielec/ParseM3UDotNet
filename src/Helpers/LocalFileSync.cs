@@ -94,11 +94,12 @@ public class LocalFileSync
 
         if (startOffset != null)
         {
-            httpContext.Response.StatusCode = 206;
-            var length = (endOffset ?? contentLength);
-            httpContext.Response.Headers.ContentRange = $"bytes {startOffset}-{length}/{contentLength}";
-            httpContext.Response.ContentLength = length;
+            long start = startOffset.Value;
+            long end = endOffset ?? (contentLength - 1);
 
+            httpContext.Response.StatusCode = 206;
+            httpContext.Response.Headers.ContentRange = $"bytes {start}-{end}/{contentLength}";
+            httpContext.Response.ContentLength = length;
         }
         else
         {
@@ -174,7 +175,7 @@ public class LocalFileSync
     public async Task ServeFromLocalFile(HttpContext httpContext, PartialFileStream partialFileStream, long? endOffset)
     {
         int? readed;
-        bool interruptRequested =false;
+        bool interruptRequested = false;
         do
         {
             readed = await partialFileStream.Read();
