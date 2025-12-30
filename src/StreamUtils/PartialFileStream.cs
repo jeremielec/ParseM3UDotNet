@@ -29,12 +29,15 @@ public class PartialFileStream(string fileName)
         }
     }
 
-    public  (FileStream Stream, bool IsTemp) GetTargetFile()
+    public bool FinalFileExist => File.Exists(fileName);
+    public bool TempFileExist => File.Exists(tempFileName);
+
+    public (FileStream Stream, bool IsTemp) GetTargetFile()
     {
-        if (File.Exists(fileName))
+        if (FinalFileExist)
             return (File.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite), false);
 
-        if (File.Exists(tempFileName))
+        if (TempFileExist)
             return (File.Open(tempFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite), true);
 
         throw new FileNotFoundException("Stream has been closed / cleaned");
@@ -47,7 +50,7 @@ public class PartialFileStream(string fileName)
         if (File.Exists(tempFileName))
             UpdateLastAccessTime(this.tempFileName);
     }
-    
+
     private void UpdateLastAccessTime(string f)
     {
         DateTime nouvelleDate = DateTime.Now;

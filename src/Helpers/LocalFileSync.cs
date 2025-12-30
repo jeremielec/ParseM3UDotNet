@@ -201,6 +201,12 @@ public class LocalFileSync
 
     public async Task ServeFromLocalFile(HttpContext httpContext, PartialFileStream partialFileStream, long? endOffset)
     {
+        if (partialFileStream.FinalFileExist)
+        {
+            await HttpServeFile.ServeFileAsync(httpContext, partialFileStream.fileName, httpContext.Response.ContentType);
+            return;
+        }
+
         do
         {
             var stream = partialFileStream.GetTargetFile();
