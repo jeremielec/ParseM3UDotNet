@@ -29,7 +29,7 @@ public class PartialFileStream(string fileName)
         }
     }
 
-    private (FileStream Stream, bool IsTemp) GetTargetFile()
+    public  (FileStream Stream, bool IsTemp) GetTargetFile()
     {
         if (File.Exists(fileName))
             return (File.Open(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite), false);

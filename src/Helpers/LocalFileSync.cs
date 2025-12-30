@@ -196,29 +196,47 @@ public class LocalFileSync
 
     public async Task ServeFromLocalFile(HttpContext httpContext, PartialFileStream partialFileStream, long? endOffset)
     {
-        int? readed;
-        bool interruptRequested = false;
         do
         {
-            readed = await partialFileStream.Read();
-            if (readed != null)
+            var stream = partialFileStream.GetTargetFile();
+            using (stream.Stream)
             {
-                if (partialFileStream.CurrentOffset > endOffset && endOffset != null)
-                {
-                    interruptRequested = true;
-                    readed = (int)(partialFileStream.CurrentOffset - endOffset.Value);
-                }
-
-
-                if (readed == 0)
-                    await Task.Delay(2000);
-                else
-                    await httpContext.Response.Body.WriteAsync(partialFileStream.Data, 0, readed.Value);
-
-                if (httpContext.RequestAborted.IsCancellationRequested)
-                    break;
+                await stream.Stream.CopyToAsync(httpContext.Response.Body);
+                partialFileStream.CurrentOffset  = stream.Stream.Position;
             }
-        } while (readed != null && interruptRequested == false);
+
+            if (stream.IsTemp)
+            {
+                await Task.Delay(2000);
+            }
+            else
+            {
+                break;
+            }
+        } while (true);
+
+        //bool interruptRequested = false;
+        // do
+        // {
+        //     readed = await partialFileStream.Read();
+        //     if (readed != null)
+        //     {
+        //         if (partialFileStream.CurrentOffset > endOffset && endOffset != null)
+        //         {
+        //             interruptRequested = true;
+        //             readed = (int)(partialFileStream.CurrentOffset - endOffset.Value);
+        //         }
+
+
+        //         if (readed.Value == 0)
+        //             await Task.Delay(2000);
+        //         else
+        //             await httpContext.Response.Body.WriteAsync(partialFileStream.Data, 0, readed.Value);
+
+        //         if (httpContext.RequestAborted.IsCancellationRequested)
+        //             break;
+        //     }
+        // } while (readed != null && interruptRequested == false);
 
         // using (Stream stream = File.Open(localFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
         // {
