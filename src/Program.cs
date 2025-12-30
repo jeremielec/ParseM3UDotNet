@@ -19,7 +19,7 @@ SettingsModel settingsModel = JsonSerializer.Deserialize<SettingsModel>(await Fi
 
 
 builder.WebHost.ConfigureKestrel(a => a.ListenAnyIP(settingsModel.Http.ListenPort));
-builder.Logging.AddConsole();
+builder.Logging.AddSimpleConsole(a => { a.SingleLine = true; });
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 builder.Services.AddSingleton<SettingsModel>(a => settingsModel);
 builder.Services.AddSingleton<RegexRepository>();

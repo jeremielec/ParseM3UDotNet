@@ -117,7 +117,7 @@ public class LocalFileSync
         httpContext.Response.ContentType = mime;
         httpContext.Response.Headers.ContentDisposition.Append("inline");
 
-
+        DumpHttpHeaders(httpContext, logger);
         this.logger.LogInformation($"Serving file range start : {startOffset} end: {endOffset} length : {contentLength}");
         this.logger.LogInformation($"Content Range response : {httpContext.Response.Headers.ContentRange.FirstOrDefault()}");
 
@@ -125,6 +125,26 @@ public class LocalFileSync
             await ServeFromLocalFile(httpContext, partialFileStream, endOffset);
 
     }
+
+    private static void DumpHttpHeaders(HttpContext context, ILogger logger, string prefix = "HTTP")
+    {
+        // ==== REQUEST ====
+        logger.LogInformation($"{prefix} REQUEST {context.Request.Method} {context.Request.Path}");
+
+        foreach (var header in context.Request.Headers)
+        {
+            logger.LogInformation($"{prefix} REQUEST HEADER: {header.Key} = {header.Value}");
+        }
+
+        // ==== RESPONSE ====
+        logger.LogInformation($"{prefix} RESPONSE StatusCode = {context.Response.StatusCode}");
+
+        foreach (var header in context.Response.Headers)
+        {
+            logger.LogInformation($"{prefix} RESPONSE HEADER: {header.Key} = {header.Value}");
+        }
+    }
+
 
     private long? GetFileSize(string url, PartialFileStream partialFileStream)
     {
