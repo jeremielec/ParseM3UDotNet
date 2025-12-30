@@ -209,10 +209,11 @@ public class LocalFileSync
                     readed = (int)(partialFileStream.CurrentOffset - endOffset.Value);
                 }
 
-                await httpContext.Response.Body.WriteAsync(partialFileStream.Data, 0, readed.Value);
 
                 if (readed == 0)
                     await Task.Delay(2000);
+                else
+                    await httpContext.Response.Body.WriteAsync(partialFileStream.Data, 0, readed.Value);
 
                 if (httpContext.RequestAborted.IsCancellationRequested)
                     break;
