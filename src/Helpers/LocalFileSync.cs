@@ -98,7 +98,7 @@ public class LocalFileSync
             long end = endOffset.HasValue ? endOffset.Value : (contentLength.GetValueOrDefault() - 1);
             long responseLength = end - start + 1;
 
-            httpContext.Response.StatusCode = 206;
+            httpContext.Response.StatusCode = endOffset.HasValue && start == 0 ? 200 : 206;
             httpContext.Response.Headers.ContentRange = $"bytes {start}-{end}/{contentLength}";
             httpContext.Response.ContentLength = responseLength;
             httpContext.Response.Headers.AcceptRanges = "bytes";
@@ -202,7 +202,7 @@ public class LocalFileSync
             using (stream.Stream)
             {
                 await stream.Stream.CopyToAsync(httpContext.Response.Body);
-                partialFileStream.CurrentOffset  = stream.Stream.Position;
+                partialFileStream.CurrentOffset = stream.Stream.Position;
             }
 
             if (stream.IsTemp)
