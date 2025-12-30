@@ -47,33 +47,33 @@ public class LocalFileSync
         PartialFileStream partialFileStream = new PartialFileStream(cacheFile);
 
 
-        httpContext.Response.Headers.AcceptRanges = "bytes";
-        if (httpContext.Request.Headers.Range.Any())
-        {
+        //httpContext.Response.Headers.AcceptRanges = "bytes";
+        // if (httpContext.Request.Headers.Range.Any())
+        // {
 
-            httpContext.Response.StatusCode = 416;
-            await httpContext.Response.CompleteAsync();
-            return;
-            // startOffset = 0;
-            // if (httpContext.Request.Headers.Range.Count() > 1)
-            // {
-            //     httpContext.Response.StatusCode = 416;
-            //     return;
-            // }
+        //     httpContext.Response.StatusCode = 416;
+        //     await httpContext.Response.CompleteAsync();
+        //     return;
+        //     // startOffset = 0;
+        //     // if (httpContext.Request.Headers.Range.Count() > 1)
+        //     // {
+        //     //     httpContext.Response.StatusCode = 416;
+        //     //     return;
+        //     // }
 
 
-            // if (RangeHeaderValue.TryParse(httpContext.Request.Headers.Range, out var range))
-            // {
-            //     var rangeCurrent = range.Ranges.FirstOrDefault();
-            //     if (rangeCurrent != null)
-            //     {
-            //         if (rangeCurrent.From != null)
-            //             startOffset = rangeCurrent.From.Value;
-            //         if (rangeCurrent.To != null)
-            //             endOffset = rangeCurrent.To.Value;
-            //     }
-            // }
-        }
+        //     // if (RangeHeaderValue.TryParse(httpContext.Request.Headers.Range, out var range))
+        //     // {
+        //     //     var rangeCurrent = range.Ranges.FirstOrDefault();
+        //     //     if (rangeCurrent != null)
+        //     //     {
+        //     //         if (rangeCurrent.From != null)
+        //     //             startOffset = rangeCurrent.From.Value;
+        //     //         if (rangeCurrent.To != null)
+        //     //             endOffset = rangeCurrent.To.Value;
+        //     //     }
+        //     // }
+        // }
 
 
 
