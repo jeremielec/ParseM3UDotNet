@@ -20,7 +20,7 @@ namespace ParseM3UNet.Helpers
             this.M3USkipRegEx = Create(settingsModel.Regex.SkipRegex);
             this.M3UGroupGenRegEx = Create(settingsModel.Regex.GroupGenRegex);
 
-            this.HttpUrlRegex = Create(@"^/([\w\d=]*)$");
+            this.HttpUrlRegex = Create(@"^/([\w\d%=]*)\.[\d\w]*$");
 
             this.HttpRangeMatch = Create("bytes=(\\d*)-");
 

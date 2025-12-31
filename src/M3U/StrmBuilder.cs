@@ -114,9 +114,9 @@ namespace Helpers
             // {
             //     subDir = Path.Combine(subDir, m3uItem.Season);
             // }
-
+            string extension = Path.GetExtension(m3uItem.FileName);
             string b64 = HttpUtility.UrlEncode(JsonUtils.SerializeToBase64(m3uItem.Url));
-            string localProxyUrl = $"http://{settingsModel.Http.PublicIp}:{settingsModel.Http.ListenPort}/{b64}";
+            string localProxyUrl = $"http://{settingsModel.Http.PublicIp}:{settingsModel.Http.ListenPort}/{b64}{extension}";
             string targetFile = m3uItem.GetStrmPath(knownDirectory);
 
             if (File.Exists(targetFile))
