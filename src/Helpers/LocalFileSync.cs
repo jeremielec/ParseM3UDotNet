@@ -204,27 +204,40 @@ public class LocalFileSync
         if (partialFileStream.FinalFileExist)
         {
             await HttpServeFile.ServeFileAsync(httpContext, partialFileStream.fileName, httpContext.Response.ContentType);
-            return;
+        }
+        else
+        {
+            do
+            {
+                var stream = partialFileStream.GetTargetFile();
+                using (stream.Stream)
+                {
+                    try
+                    {
+                        await stream.Stream.CopyToAsync(httpContext.Response.Body);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        break;
+                    }
+                    partialFileStream.CurrentOffset = stream.Stream.Position;
+                }
+
+                if (stream.IsTemp)
+                {
+                    await Task.Delay(2000);
+                }
+                else
+                {
+                    break;
+                }
+            } while (true);
         }
 
-        do
-        {
-            var stream = partialFileStream.GetTargetFile();
-            using (stream.Stream)
-            {
-                await stream.Stream.CopyToAsync(httpContext.Response.Body);
-                partialFileStream.CurrentOffset = stream.Stream.Position;
-            }
 
-            if (stream.IsTemp)
-            {
-                await Task.Delay(2000);
-            }
-            else
-            {
-                break;
-            }
-        } while (true);
+
+        await httpContext.Response.Body.FlushAsync();
+
 
         //bool interruptRequested = false;
         // do

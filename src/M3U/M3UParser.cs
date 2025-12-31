@@ -11,8 +11,10 @@ namespace ParseM3UNet.M3U
     {
         private readonly RegexRepository regexRepository = regexRepository;
 
-        public async IAsyncEnumerable<M3UItem> ReadM3U(Stream stream)
+        public async Task<(List<M3UItem> Movies, List<M3UItem> TvShows)> GetM3UItems(Stream stream)
         {
+            List<M3UItem> Movies = new();
+            List<M3UItem> TvShows = new();
 
             using (StreamReader reader = new StreamReader(stream))
             {
@@ -43,7 +45,13 @@ namespace ParseM3UNet.M3U
                                 Season: seasonInfo,
                                 Url: url
                             );
-                            yield return m3UItem;
+
+                            if (m3UItem.ItemType == M3UItemTypeEnum.MOVIE)
+                                Movies.Add(m3UItem);
+                            else
+                                TvShows.Add(m3UItem);
+
+                            // yield return m3UItem;
 
                             previousHeaderMatch = null;
                         }
@@ -64,6 +72,8 @@ namespace ParseM3UNet.M3U
                 } while (line != null);
 
             }
+
+            return (Movies, TvShows);
         }
 
         private string GetGroupName(string rawName)

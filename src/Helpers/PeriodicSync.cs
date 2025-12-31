@@ -59,7 +59,6 @@ namespace ParseM3UNet.Helpers
                 var m3UParser = scope.ServiceProvider.GetRequiredService<M3UParser>();
                 var strmBuilder = scope.ServiceProvider.GetRequiredService<StrmBuilder>();
 
-                knownDirectory.Clear();
                 string source;
                 if (settingsModel.Source.LocalFileM3U != null && settingsModel.Source.HttpM3USource != null)
                 {
@@ -78,18 +77,29 @@ namespace ParseM3UNet.Helpers
                     throw new Exception("No source M3U");
                 }
 
-                int movieParsed = 0, tvShowParsed = 0;
+
+
                 using (FileStream stream = File.OpenRead(source))
                 {
-                    await foreach (var item in m3UParser.ReadM3U(stream))
-                    {
-                        if (item.ItemType == M3UItemTypeEnum.MOVIE) movieParsed++;
-                        if (item.ItemType == M3UItemTypeEnum.TVSHOW) tvShowParsed++;
+                    var items = await m3UParser.GetM3UItems(stream);
 
-                        await strmBuilder.Add(item);
-                    }
+                    await strmBuilder.Cleanup(items.Movies, M3UItemTypeEnum.MOVIE);
+                    await strmBuilder.Cleanup(items.TvShows, M3UItemTypeEnum.TVSHOW);
+                    // await foreach (var item in m3UParser.ReadM3U(stream))
+                    // {
+                    //     if (item.ItemType == M3UItemTypeEnum.MOVIE) movieParsed++;
+                    //     if (item.ItemType == M3UItemTypeEnum.TVSHOW) tvShowParsed++;
+                    // var e = await strmBuilder.ReadExisting();
+                    foreach (var t in items.TvShows)
+                        await strmBuilder.Add(t);
+
+                    foreach (var t in items.Movies)
+                        await strmBuilder.Add(t);
+                    // }
+
+
+                    logger.LogInformation($"Parse M3U completed, movie = {items.Movies.Count} tvshow = {items.TvShows.Count}");
                 }
-                logger.LogInformation($"Parse M3U completed, movie = {movieParsed} tvshow = {tvShowParsed}");
             }
 
         }
