@@ -61,6 +61,12 @@ namespace ParseM3UNet.Http
                 while (File.Exists(mappedFIle.LocalFile) == false)
                 {
                     await Task.Delay(100);
+                    if (context.RequestAborted.IsCancellationRequested)
+                    {
+                        await context.Response.CompleteAsync();
+                        break;
+                    }
+
                     if (stopwatch.Elapsed.TotalSeconds > 20) throw new TimeoutException("timeout waiting for file exists : " + mappedFIle.LocalFile);
                 }
             }
@@ -120,6 +126,11 @@ namespace ParseM3UNet.Http
 
                 while (remaining > 0)
                 {
+                    if (context.RequestAborted.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
                     a.Seek(start, SeekOrigin.Begin);
                     var streamCopy = new StreamCopy(a, response.Body);
                     long resultCopied = await streamCopy.Copy(remaining);
