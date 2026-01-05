@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using Microsoft.AspNetCore.Routing.Tree;
 using Models;
 using ParseM3UNet.StreamUtils;
 
@@ -12,59 +13,55 @@ public class HttpSingletonClient(SettingsModel settingsModel)
     SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
 
 
-    public async Task<bool> DownloadBlock(string url, long start, long end, Func<HttpResponseMessage, Task> callback)
+    public async Task<bool> DownloadBlock(string url, long start, long end, Func<HttpResponseMessage, Task> callback, int tryCuount = 10)
     {
 
-        while (true)
-        {
-            await semaphoreSlim.WaitAsync();
-            HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, url);
-            httpRequestMessage.Headers.TryAddWithoutValidation("User-Agent", settingsModel.Http.UserAgent);
-            httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(start, end);
+        if (tryCuount == 0) throw new TimeoutException("failed to recover from 509");
 
+        await semaphoreSlim.WaitAsync();
+        HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, url);
+        httpRequestMessage.Headers.TryAddWithoutValidation("User-Agent", settingsModel.Http.UserAgent);
+        httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(start, end);
+
+        try
+        {
             try
             {
-                try
+                using (var response = await httpClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead))
                 {
-                    using (var response = await httpClient.SendAsync(httpRequestMessage, HttpCompletionOption.ResponseHeadersRead))
-                    {
-                        if (response.StatusCode == System.Net.HttpStatusCode.RequestedRangeNotSatisfiable)
-                            return false;
+                    if (response.StatusCode == System.Net.HttpStatusCode.RequestedRangeNotSatisfiable)
+                        return false;
 
-                        if ((int)response.StatusCode == 509)
-                        {
-                            await Task.Delay(60000);
-                            continue;
-                        }
-                        response.EnsureSuccessStatusCode();
-                        await callback(response);
-                        return true;
-                        // var stream = await response.Content.ReadAsStreamAsync();
-                        // MemoryStream memoryStream = new MemoryStream();
-                        // await stream.CopyToAsync(memoryStream);
-                        // return (memoryStream, response);
-                    }
-                }
-                catch (Exception e)
-                {
-                    if (e.Message.Contains("prematurely"))
+                    if ((int)response.StatusCode == 509)
                     {
-                        await Task.Delay(1000);
-                        continue;
+                        await Task.Delay(60000);
+                        return await DownloadBlock(url, start, end, callback, tryCuount--);
                     }
-                    if (e.Message.Contains("reset"))
-                    {
-                        return false; // WOrkarrou for bad server response
-                    }
-                    throw;
+                    response.EnsureSuccessStatusCode();
+                    await callback(response);
+                    return true;
+                    // var stream = await response.Content.ReadAsStreamAsync();
+                    // MemoryStream memoryStream = new MemoryStream();
+                    // await stream.CopyToAsync(memoryStream);
+                    // return (memoryStream, response);
                 }
-
             }
-            finally
+            catch (Exception e)
             {
-                semaphoreSlim.Release();
-            }
-        }
 
+                if (e.Message.Contains("reset"))
+                {
+                    return false; // WOrkarrou for bad server response
+                }
+                throw;
+            }
+
+        }
+        finally
+        {
+            semaphoreSlim.Release();
+        }
     }
+
+
 }
