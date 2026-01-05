@@ -41,6 +41,10 @@ public class StreamCopy(Stream source, Stream dest)
                 copiedByte += toWrite;
                 remaining -= toWrite;
             }
+            else
+            {
+                break;
+            }
 
         }
         return copiedByte;
