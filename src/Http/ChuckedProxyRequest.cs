@@ -38,7 +38,7 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
                  }
 
                  var stream = await result.Content.ReadAsStreamAsync();
-                 long copied = await new StreamCopy(stream, httpContext.Response.Body).Copy(length);
+                 long copied = await Task.Run(async () => await new StreamCopy(stream, httpContext.Response.Body).Copy(length));
                  currentOffset += copied;
              });
 
