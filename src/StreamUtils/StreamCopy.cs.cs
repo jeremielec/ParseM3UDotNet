@@ -15,7 +15,7 @@ public class StreamCopy(Stream source, Stream dest)
         while (remaining > 0)
         {
 
-            int readResult = 0;
+            int readResult;
             try
             {
                 readResult = await source.ReadAsync(data, 0, data.Length);
@@ -25,6 +25,10 @@ public class StreamCopy(Stream source, Stream dest)
                 if (e.Message.Contains("prematurely"))
                 {
                     break;
+                }
+                else
+                {
+                    throw;
                 }
             }
 
