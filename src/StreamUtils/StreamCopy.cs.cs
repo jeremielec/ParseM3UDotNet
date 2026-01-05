@@ -41,8 +41,7 @@ public class StreamCopy(Stream source, Stream dest)
                 copiedByte += toWrite;
                 remaining -= toWrite;
             }
-            if (readResult < data.Length)
-                await Task.Delay(5);
+
         }
         return copiedByte;
     }

@@ -14,7 +14,6 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
 
         long start = 0;
         long end = long.MaxValue;
-        long currentOffset = start;
         const long blockSize = 1024 * 1000 * 32;
 
 
@@ -25,6 +24,10 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
             start = rangeValue.Ranges.First().From.GetValueOrDefault();
             end = rangeValue.Ranges.First().To ?? long.MaxValue;
         }
+
+        long currentOffset = start;
+
+
         while (currentOffset < end)
         {
             long endRequest = Math.Min(currentOffset + blockSize, end);
