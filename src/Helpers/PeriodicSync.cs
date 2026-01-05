@@ -77,26 +77,16 @@ namespace ParseM3UNet.Helpers
                     throw new Exception("No source M3U");
                 }
 
-
-
                 using (FileStream stream = File.OpenRead(source))
                 {
                     var items = await m3UParser.GetM3UItems(stream);
 
                     await strmBuilder.Cleanup(items.Movies, M3UItemTypeEnum.MOVIE);
                     await strmBuilder.Cleanup(items.TvShows, M3UItemTypeEnum.TVSHOW);
-                    // await foreach (var item in m3UParser.ReadM3U(stream))
-                    // {
-                    //     if (item.ItemType == M3UItemTypeEnum.MOVIE) movieParsed++;
-                    //     if (item.ItemType == M3UItemTypeEnum.TVSHOW) tvShowParsed++;
-                    // var e = await strmBuilder.ReadExisting();
-                    foreach (var t in items.TvShows)
-                        await strmBuilder.Add(t);
 
-                    foreach (var t in items.Movies)
-                        await strmBuilder.Add(t);
-                    // }
 
+                    foreach (var t in items.TvShows.Concat(items.Movies))
+                        await strmBuilder.Add(t);
 
                     logger.LogInformation($"Parse M3U completed, movie = {items.Movies.Count} tvshow = {items.TvShows.Count}");
                 }

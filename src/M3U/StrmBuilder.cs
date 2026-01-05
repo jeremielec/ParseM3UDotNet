@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
@@ -22,45 +23,30 @@ namespace Helpers
         public async Task<List<M3UItem>> ReadExisting(M3UItemTypeEnum m3UItemTypeEnum)
         {
             string path = m3UItemTypeEnum == M3UItemTypeEnum.MOVIE ? knownDirectory.pathMovie : knownDirectory.pathTvShow;
-            return await ReadFolder(path, m3UItemTypeEnum == M3UItemTypeEnum.TVSHOW);
+            return await ReadFolder(path);
         }
 
-        private async Task<List<M3UItem>> ReadFolder(string folder, bool asTvShow)
+        private async Task<List<M3UItem>> ReadFolder(string folder)
         {
             List<M3UItem> returnList = new();
-            Regex m = new Regex("S(\\d\\d)");
-            foreach (var groupDir in Directory.EnumerateDirectories(folder))
-            {
-                string groupName = Path.GetFileName(groupDir)!;
-                if (asTvShow)
-                {
-                    foreach (var seasonDir in Directory.EnumerateDirectories(groupDir))
-                    {
-                        string seasonTemp = Path.GetFileName(seasonDir)!;
-                        var match = m.Match(seasonTemp);
-                        if (match.Success)
-                        {
-                            foreach (var file in Directory.EnumerateFiles(seasonDir))
-                            {
-                                string content = await File.ReadAllTextAsync(file);
-                                string name = Path.GetFileNameWithoutExtension(file);
-                                string fileName = Path.GetFileName(file);
-                                returnList.Add(new(name, fileName, groupName, M3UItemTypeEnum.TVSHOW, content, seasonTemp));
-                            }
 
-                        }
-                    }
-                }
-                else
+            foreach (string[] files in Directory.EnumerateFiles(folder, "*.json", SearchOption.AllDirectories).Chunk(100))
+            {
+
+                List<M3UItem> subList = new();
+                foreach (var f in files)
                 {
-                    foreach (var movieFile in Directory.EnumerateFiles(groupDir))
-                    {
-                        string content = await File.ReadAllTextAsync(movieFile);
-                        string name = Path.GetFileNameWithoutExtension(movieFile);
-                        string fileName = Path.GetFileName(movieFile);
-                        returnList.Add(new(name, fileName, groupName, M3UItemTypeEnum.MOVIE, content, null));
-                    }
+                    string content = await File.ReadAllTextAsync(f);
+                    M3UItem m3UItem = JsonSerializer.Deserialize<M3UItem>(content)!;
+                    subList.Add(m3UItem);
                 }
+
+                lock (returnList)
+                {
+                    returnList.AddRange(subList);
+                }
+
+
             }
 
             return returnList;
@@ -72,6 +58,7 @@ namespace Helpers
             //  string basePath = m3UItemTypeEnum == M3UItemTypeEnum.MOVIE ? knownDirectory.pathMovie : knownDirectory.pathTvShow;
             var itemInFs = await ReadExisting(m3UItemTypeEnum);
 
+
             foreach (var item in itemInFs)
             {
                 if (sourceItems.Any(a => a.ItemType == m3UItemTypeEnum && a.GroupName == item.GroupName && a.Name == item.Name) == false)
@@ -81,6 +68,11 @@ namespace Helpers
                     if (File.Exists(filePath))
                     {
                         File.Delete(filePath);
+
+                        string json = Path.ChangeExtension(filePath, "json");
+                        if (File.Exists(json))
+                            File.Delete(json);
+
 
                         string dir = Path.GetDirectoryName(filePath)!;
 
@@ -108,16 +100,11 @@ namespace Helpers
         public async Task Add(M3UItem m3uItem)
         {
 
-            // string baseDir = m3uItem.ItemType == M3UItemTypeEnum.MOVIE ? knownDirectory.pathMovie : knownDirectory.pathTvShow;
-            // string subDir = Path.Combine(baseDir, m3uItem.GroupName);
-            // if (m3uItem.ItemType == M3UItemTypeEnum.TVSHOW && m3uItem.Season != null)
-            // {
-            //     subDir = Path.Combine(subDir, m3uItem.Season);
-            // }
             string extension = Path.GetExtension(m3uItem.FileName);
             string b64 = HttpUtility.UrlEncode(JsonUtils.SerializeToBase64(m3uItem.Url));
             string localProxyUrl = $"http://{settingsModel.Http.PublicIp}:{settingsModel.Http.ListenPort}/{b64}{extension}";
             string targetFile = m3uItem.GetStrmPath(knownDirectory);
+            string targetFileJson = Path.ChangeExtension(targetFile, "json");
 
             if (File.Exists(targetFile))
             {
@@ -138,6 +125,7 @@ namespace Helpers
             Directory.CreateDirectory(dir);
 
             await File.WriteAllTextAsync(targetFile, localProxyUrl);
+            await File.WriteAllTextAsync(targetFileJson, JsonSerializer.Serialize(m3uItem));
 
 
         }

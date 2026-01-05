@@ -21,6 +21,7 @@ namespace ParseM3UNet.Helpers
             this.M3UGroupGenRegEx = Create(settingsModel.Regex.GroupGenRegex);
 
             this.HttpUrlRegex = Create(@"^/([\w\d%=]*)\.[\d\w]*$");
+            this.HttpUrlRegexProxy = Create(@"^/proxy/([\w\d%=]*)$");
 
             this.HttpRangeMatch = Create("bytes=(\\d*)-");
 
@@ -33,6 +34,7 @@ namespace ParseM3UNet.Helpers
         public readonly List<Regex> M3UGroupGenRegEx;
 
         public readonly Regex HttpUrlRegex;
+        public readonly Regex HttpUrlRegexProxy;
         public readonly Regex HttpRangeMatch;
 
         private Regex Create(string reg) => new Regex(reg, RegexOptions.Compiled);

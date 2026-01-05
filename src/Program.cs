@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,7 @@ using Models;
 using ParseM3UNet.Helpers;
 using ParseM3UNet.Http;
 using ParseM3UNet.M3U;
+using ParseM3UNet.StreamUtils;
 
 
 var builder = WebApplication.CreateSlimBuilder();
@@ -27,14 +29,21 @@ builder.Services.AddScoped<PeriodicSync>();
 builder.Services.AddScoped<M3UParser>();
 builder.Services.AddScoped<StrmBuilder>();
 builder.Services.AddScoped<KnownDirectory>();
-builder.Services.AddScoped<LocalFileSync>();
-builder.Services.AddSingleton<FileDownloader>();
+
+builder.Services.AddTransient<ChuckedProxyRequest>();
+builder.Services.AddSingleton<FFMpegRemuxerOrchestor>();
+builder.Services.AddTransient<FFMpegRemuxerTask>();
+builder.Services.AddSingleton<MappedBinaryFileRepository>();
+builder.Services.AddSingleton<HttpSingletonClient>();
+
 builder.Services.AddHostedService<PeriodicSync>();
 var app = builder.Build();
 
 
 
-app.Run(async (context) => await HttpRequestHandler.HandleRequest(context));
+
+
+app.Run(HttpRequestHandler.HandleRequest);
 
 await app.StartAsync();
 
