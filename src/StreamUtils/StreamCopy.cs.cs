@@ -33,12 +33,12 @@ public class StreamCopy(Stream source, Stream dest)
                 long toWrite = Math.Min(remaining, readResult);
 
                 await dest.WriteAsync(data, 0, (int)toWrite);
+                await dest.FlushAsync();
                 copiedByte += toWrite;
                 remaining -= toWrite;
             }
 
         }
-        await dest.FlushAsync();
         return copiedByte;
     }
 }
