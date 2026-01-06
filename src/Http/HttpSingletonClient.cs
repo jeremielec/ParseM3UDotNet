@@ -9,20 +9,36 @@ namespace ParseM3UNet.Http;
 public class HttpSingletonClient(SettingsModel settingsModel)
 {
     private readonly SettingsModel settingsModel = settingsModel;
-    HttpClient httpClient = new();
-    SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
-
-
-    public async Task<bool> DownloadBlock(string url, long start, long end, Func<HttpResponseMessage, Task> callback, int tryCuount = 10)
+    HttpClient httpClient = new()
     {
 
+    };
+    SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
+
+    public bool IsBusy()
+    {
+        bool isAvailable = semaphoreSlim.Wait(0);
+        if (isAvailable) semaphoreSlim.Release();
+        return isAvailable == false;
+
+    }
+    public bool HasWaitingThread() => WaitingThread != 0;
+    private long WaitingThread = 0;
+
+
+    public async Task<bool> DownloadBlock(string url, long start, long? end, Func<HttpResponseMessage, Task> callback, int tryCuount = 10)
+    {
+        httpClient.DefaultRequestHeaders.ConnectionClose = true;
         if (tryCuount == 0) throw new TimeoutException("failed to recover from 509");
 
+        Interlocked.Increment(ref WaitingThread);
         await semaphoreSlim.WaitAsync();
+        Interlocked.Decrement(ref WaitingThread);
+
         HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, url);
         httpRequestMessage.Headers.TryAddWithoutValidation("User-Agent", settingsModel.Http.UserAgent);
 
-        if (start != 0 && end != long.MaxValue)
+        if (start > 0 || end.HasValue)
             httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(start, end);
 
         try

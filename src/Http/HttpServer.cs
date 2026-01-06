@@ -128,7 +128,7 @@ namespace ParseM3UNet.Http
                     a.Seek(currentPosition, SeekOrigin.Begin);
 
                     var streamCopy = new StreamCopy(a);
-                    var data = await streamCopy.Copy(Math.Min(remaining, Const.DefaultBlockSize));
+                    var data = await streamCopy.Copy(Math.Min(remaining, Const.LiteDownloadBlockSize));
                     if (data != null)
                     {
                         lastWriteResult = data.Length;

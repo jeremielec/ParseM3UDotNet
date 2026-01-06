@@ -30,9 +30,22 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
 
         while (currentOffset < end)
         {
-            long endRequest = Math.Min(currentOffset + Const.DefaultBlockSize, end);
-            long length = endRequest - currentOffset;
+            long? endRequest;
             MemoryStreamReusable? data = null;
+
+            if (currentOffset > Const.StartupDownloadBlockSize
+                 && end == long.MaxValue
+                 && httpSingletonClient.IsBusy() == false)
+            {
+                endRequest = null;
+            }
+            else
+            {
+                long initialBlock = currentOffset == 0 ? Const.StartupDownloadBlockSize : Const.LiteDownloadBlockSize;
+                endRequest = Math.Min(currentOffset +initialBlock, end);
+            }
+
+
             bool result = await httpSingletonClient.DownloadBlock(targetUrl, currentOffset, endRequest, async result =>
                {
                    if (currentOffset == start)
@@ -40,12 +53,40 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
                        SetHeadersFromContentRange(httpContext, result);
                        if (currentOffset == 0)
                        {
-                           httpContext.Response.Headers.ContentLength = result.Content.Headers.ContentLength;
+                           if (result.Content.Headers.ContentRange != null && result.Content.Headers.ContentRange.Length != null)
+                           {
+                               httpContext.Response.Headers.ContentLength = result.Content.Headers.ContentRange.Length.Value;
+                           }
                        }
                    }
 
                    var stream = await result.Content.ReadAsStreamAsync();
-                   data = await new StreamCopy(stream).Copy(length);
+
+                   if (endRequest != null)
+                   {
+                       long length = endRequest.Value - currentOffset;
+                       data = await new StreamCopy(stream).Copy(length);
+                   }
+                   else
+                   {
+                       byte[] data = new byte[65535];
+                       long lastRead = 0;
+
+                       long writed = 0;
+                       do
+                       {
+                           lastRead = await stream.ReadAsync(data, 0, data.Length);
+                           if (lastRead > 0)
+                           {
+                               await DoPartialWriteIfNeeded(httpContext, lastRead, data);
+                               currentOffset += lastRead;
+                               writed += lastRead;
+                           }
+
+                           if (httpSingletonClient.HasWaitingThread()) break;
+
+                       } while (lastRead > 0);
+                   }
 
                });
 
@@ -53,9 +94,7 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
             {
                 using (data)
                 {
-
-                    var toWrite = new ReadOnlyMemory<byte>(data.ArrayBackend, 0, (int)data.Length);
-                    await httpContext.Response.BodyWriter.WriteAsync(toWrite);
+                    await DoPartialWriteIfNeeded(httpContext, data.Length, data.ArrayBackend);
                     currentOffset += data.Length;
                 }
             }
@@ -65,6 +104,19 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
         }
 
 
+    }
+
+    private static async Task DoPartialWriteIfNeeded(HttpContext httpContext, long length, byte[] data)
+    {
+        if (length < data.Length)
+        {
+            var toWrite = new ReadOnlyMemory<byte>(data, 0, (int)length);
+            await httpContext.Response.BodyWriter.WriteAsync(toWrite);
+        }
+        else
+        {
+            await httpContext.Response.BodyWriter.WriteAsync(data);
+        }
     }
 
     private void SetHeadersFromContentRange(HttpContext httpContext, HttpResponseMessage result)
