@@ -110,7 +110,7 @@ namespace ParseM3UNet.Http
 
                 response.Headers.AcceptRanges = $"bytes";
                 response.Headers.ContentLength = new FileInfo(mappedFile.LocalFile).Length;
-                
+
             }
 
             long remaining = (end ?? long.MaxValue) - start;
@@ -134,8 +134,15 @@ namespace ParseM3UNet.Http
                         lastWriteResult = data.Length;
                         using (data)
                         {
-                            ReadOnlyMemory<byte> readOnlyMemory = new ReadOnlyMemory<byte>(data.ArrayBackend, 0, (int)data.Length);
-                            await response.BodyWriter.WriteAsync(readOnlyMemory);
+                            if (data.Length < data.ArrayBackend.Length)
+                            {
+                                ReadOnlyMemory<byte> readOnlyMemory = new ReadOnlyMemory<byte>(data.ArrayBackend, 0, (int)data.Length);
+                                await response.BodyWriter.WriteAsync(readOnlyMemory);
+                            }
+                            else
+                            {
+                                await response.BodyWriter.WriteAsync(data.ArrayBackend);
+                            }
                             remaining -= data.Length;
                             currentPosition += data.Length;
                         }

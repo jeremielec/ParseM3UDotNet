@@ -4,8 +4,8 @@ public class Const
 {
     public const long StartupDownloadBlockSize = 1024 * 1000 * 16;
     public const long LiteDownloadBlockSize = 1024 * 1000 * 128;
-    public const long HugeDownloadBlockSize = 1024 * 1000 * 512;
-    public const int MemoryBlockSize = (int)(1024 * 1000 * 512 * 1.1);
+   // public const long HugeDownloadBlockSize = 1024 * 1000 * 512;
+    public const int MemoryBlockSize = (int)(1024 * 1000 * 128* 1.01);
 
     public static ArrayPool<byte> pool = ArrayPool<byte>.Create();
 
