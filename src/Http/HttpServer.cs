@@ -77,11 +77,8 @@ namespace ParseM3UNet.Http
         {
             string data = matchProxy.Groups.Values.Last().Value;
             string targetUrl = JsonUtils.DeserializeFromBase64<string>(data);
-
             ChuckedProxyRequest chuckedProxyRequest = context.RequestServices.GetRequiredService<ChuckedProxyRequest>();
-
             await chuckedProxyRequest.ProxyRequest(context, targetUrl);
-            await context.Response.CompleteAsync();
         }
 
 
@@ -113,44 +110,45 @@ namespace ParseM3UNet.Http
 
                 response.Headers.AcceptRanges = $"bytes";
                 response.Headers.ContentLength = new FileInfo(mappedFile.LocalFile).Length;
+                
             }
 
             long remaining = (end ?? long.MaxValue) - start;
+            long currentPosition = start;
 
-
-
-
-            await mappedFile.SafeFileAccess(async a =>
+            while (remaining > 0)
             {
-
-
-                while (remaining > 0)
+                if (context.RequestAborted.IsCancellationRequested)
                 {
-                    if (context.RequestAborted.IsCancellationRequested)
-                    {
-                        break;
-                    }
-
-                    a.Seek(start, SeekOrigin.Begin);
-                    var streamCopy = new StreamCopy(a, response.Body);
-                    long resultCopied = await streamCopy.Copy(remaining);
-                    remaining -= resultCopied;
-
-                    if (remaining > 0 && mappedFile.Metadata.IsCompleted == false)
-                    {
-                        await Task.Delay(1000);
-                    }
-
-                    if (resultCopied == 0 && mappedFile.Metadata.IsCompleted)
-                        break;
+                    break;
                 }
+                long lastWriteResult = 0;
+                await mappedFile.SafeFileAccess(async a =>
+                {
+                    a.Seek(currentPosition, SeekOrigin.Begin);
 
+                    var streamCopy = new StreamCopy(a);
+                    var data = await streamCopy.Copy(Math.Min(remaining, Const.DefaultBlockSize));
+                    if (data != null)
+                    {
+                        lastWriteResult = data.Length;
+                        using (data)
+                        {
+                            ReadOnlyMemory<byte> readOnlyMemory = new ReadOnlyMemory<byte>(data.ArrayBackend, 0, (int)data.Length);
+                            await response.BodyWriter.WriteAsync(readOnlyMemory);
+                            remaining -= data.Length;
+                            currentPosition += data.Length;
+                        }
+                    }
+                });
 
-            });
-
-            await context.Response.CompleteAsync();
+                if (mappedFile.Metadata.IsCompleted && lastWriteResult == 0)
+                    break;
+                else
+                    if (lastWriteResult == 0)
+                        await Task.Delay(1000);
+            }
         }
-
 
 
     }

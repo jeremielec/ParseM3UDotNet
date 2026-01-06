@@ -2,23 +2,34 @@ using System;
 
 namespace ParseM3UNet.StreamUtils;
 
-public class StreamCopy(Stream source, Stream dest)
+public class StreamCopy(Stream source)
 {
     private readonly Stream source = source;
-    private readonly Stream dest = dest;
-    byte[] data = new byte[65535];
 
-    public async Task<long> Copy(long count)
+    public async Task<MemoryStreamReusable?> Copy(long? count)
     {
-        long remaining = count;
+        MemoryStreamReusable? stream = Const.CreateMemorySream();
+
+
+        long remaining = count ?? long.MaxValue;
         long copiedByte = 0;
+
         while (remaining > 0)
         {
+
 
             int readResult;
             try
             {
-                readResult = await source.ReadAsync(data, 0, data.Length);
+                long toRead = Math.Min(stream.ArrayBackend.Length, remaining);
+                readResult = await source.ReadAsync(stream.ArrayBackend, (int)copiedByte, (int)toRead);
+
+                copiedByte += readResult;
+                remaining -= readResult;
+
+
+                if (readResult == 0)
+                    break;
             }
             catch (Exception e)
             {
@@ -32,21 +43,10 @@ public class StreamCopy(Stream source, Stream dest)
                 }
             }
 
-            if (readResult > 0)
-            {
-                long toWrite = Math.Min(remaining, readResult);
-
-                await dest.WriteAsync(data, 0, (int)toWrite);
-                await dest.FlushAsync();
-                copiedByte += toWrite;
-                remaining -= toWrite;
-            }
-            else
-            {
-                break;
-            }
-
         }
-        return copiedByte;
+        stream.Position = 0;
+        stream.SetLength(copiedByte);
+        return stream;
+
     }
 }

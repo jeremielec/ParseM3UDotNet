@@ -21,7 +21,9 @@ public class HttpSingletonClient(SettingsModel settingsModel)
         await semaphoreSlim.WaitAsync();
         HttpRequestMessage httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, url);
         httpRequestMessage.Headers.TryAddWithoutValidation("User-Agent", settingsModel.Http.UserAgent);
-        httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(start, end);
+
+        if (start != 0 && end != long.MaxValue)
+            httpRequestMessage.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(start, end);
 
         try
         {

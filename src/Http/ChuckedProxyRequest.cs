@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Http;
 using ParseM3UNet.StreamUtils;
@@ -14,7 +15,6 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
 
         long start = 0;
         long end = long.MaxValue;
-        const long blockSize = 1024 * 1000 * 32;
 
 
         if (httpContext.Request.Headers.Range.Any())
@@ -30,24 +30,38 @@ public class ChuckedProxyRequest(HttpSingletonClient httpSingletonClient)
 
         while (currentOffset < end)
         {
-            long endRequest = Math.Min(currentOffset + blockSize, end);
+            long endRequest = Math.Min(currentOffset + Const.DefaultBlockSize, end);
             long length = endRequest - currentOffset;
+            MemoryStreamReusable? data = null;
+            bool result = await httpSingletonClient.DownloadBlock(targetUrl, currentOffset, endRequest, async result =>
+               {
+                   if (currentOffset == start)
+                   {
+                       SetHeadersFromContentRange(httpContext, result);
+                       if (currentOffset == 0)
+                       {
+                           httpContext.Response.Headers.ContentLength = result.Content.Headers.ContentLength;
+                       }
+                   }
 
-            bool requestOk = await httpSingletonClient.DownloadBlock(targetUrl, currentOffset, endRequest, async result =>
-             {
-                 if (currentOffset == start)
-                 {
-                     SetHeadersFromContentRange(httpContext, result);
-                 }
+                   var stream = await result.Content.ReadAsStreamAsync();
+                   data = await new StreamCopy(stream).Copy(length);
 
-                 var stream = await result.Content.ReadAsStreamAsync();
-                 long copied = await Task.Run(async () => await new StreamCopy(stream, httpContext.Response.Body).Copy(length));
-                 currentOffset += copied;
-             });
+               });
 
-            if (requestOk == false) break;
-            else await Task.Delay(500);
+            if (data != null)
+            {
+                using (data)
+                {
 
+                    var toWrite = new ReadOnlyMemory<byte>(data.ArrayBackend, 0, (int)data.Length);
+                    await httpContext.Response.BodyWriter.WriteAsync(toWrite);
+                    currentOffset += data.Length;
+                }
+            }
+
+            if (result == false) break;
+            if (httpContext.RequestAborted.IsCancellationRequested) break;
         }
 
 

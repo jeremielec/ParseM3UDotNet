@@ -62,10 +62,17 @@ public class FFMpegRemuxerTask(ILogger<FFMpegRemuxerTask> logger, SettingsModel 
 
         using (FileStream log = File.Open(mappedBinaryFile.LocalFFMpegLogFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
         {
-            workingJob.ErrorDataReceived += (a, b) => OnConsoleRead(a, b, log);
-            workingJob.OutputDataReceived += (a, b) => OnConsoleRead(a, b, log); ;
-            workingJob.BeginErrorReadLine();
-            workingJob.BeginOutputReadLine();
+            //  workingJob.ErrorDataReceived += (a, b) => OnConsoleRead(a, b, log);
+            //  workingJob.OutputDataReceived += (a, b) => OnConsoleRead(a, b, log); ;
+            //  workingJob.BeginErrorReadLine();
+            //  workingJob.BeginOutputReadLine();
+
+            Task[] allTask = new[] {
+                workingJob.StandardError.BaseStream.CopyToAsync(log),
+                workingJob.StandardOutput.BaseStream.CopyToAsync(log)
+                };
+
+            await Task.WhenAll(allTask);
 
 
             while (workingJob.HasExited == false)
@@ -89,15 +96,15 @@ public class FFMpegRemuxerTask(ILogger<FFMpegRemuxerTask> logger, SettingsModel 
 
     }
 
-    private async Task OnConsoleRead(object sender, DataReceivedEventArgs e, FileStream fileStream)
-    {
-        if (e.Data != null)
-        {
-            if (e.Data.StartsWith("frame=")) return;
-            fileStream.Write(Encoding.UTF8.GetBytes(e.Data + "\n"));
-            fileStream.Flush();
-            //logger.LogInformation($"FFMpeg Output : " + e.Data);
-        }
+    // private async Task OnConsoleRead(object sender, DataReceivedEventArgs e, FileStream fileStream)
+    // {
+    //     if (e.Data != null)
+    //     {
+    //         if (e.Data.StartsWith("frame=")) return;
+    //         fileStream.Write(Encoding.UTF8.GetBytes(e.Data + "\n"));
+    //         fileStream.Flush();
+    //         //logger.LogInformation($"FFMpeg Output : " + e.Data);
+    //     }
 
-    }
+    // }
 }
