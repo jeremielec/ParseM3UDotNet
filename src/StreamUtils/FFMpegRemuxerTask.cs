@@ -44,11 +44,14 @@ public class FFMpegRemuxerTask(ILogger<FFMpegRemuxerTask> logger, SettingsModel 
         processStartInfo.ArgumentList.Add("-user_agent");
         processStartInfo.ArgumentList.Add(settingsModel.Http.UserAgent);
 
+        processStartInfo.ArgumentList.Add("-map");
+        processStartInfo.ArgumentList.Add("0");
+
+//        processStartInfo.ArgumentList.Add("-sn");
         processStartInfo.ArgumentList.Add("-c:v");
         processStartInfo.ArgumentList.Add("copy");
         processStartInfo.ArgumentList.Add("-c:a");
         processStartInfo.ArgumentList.Add("copy");
-        processStartInfo.ArgumentList.Add("-sn");
 
         processStartInfo.ArgumentList.Add("-avoid_negative_ts");
         processStartInfo.ArgumentList.Add("make_zero");
