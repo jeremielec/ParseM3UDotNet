@@ -45,11 +45,10 @@ public class FFMpegRemuxerTask(ILogger<FFMpegRemuxerTask> logger, SettingsModel 
         processStartInfo.ArgumentList.Add(settingsModel.Http.UserAgent);
 
         processStartInfo.ArgumentList.Add("-map");
-        processStartInfo.ArgumentList.Add("0:v");
+        processStartInfo.ArgumentList.Add("0");
         processStartInfo.ArgumentList.Add("-map");
-        processStartInfo.ArgumentList.Add("0:a");
-        processStartInfo.ArgumentList.Add("-map");
-        processStartInfo.ArgumentList.Add("0:s");
+        processStartInfo.ArgumentList.Add("-0:d");
+
 
         //        processStartInfo.ArgumentList.Add("-sn");
         processStartInfo.ArgumentList.Add("-c:v");
